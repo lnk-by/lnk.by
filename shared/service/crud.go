@@ -18,33 +18,6 @@ type Ops[T any] struct {
 	Delete   string
 }
 
-//func typeName(v any) entity {
-//	t := fmt.Sprintf("%T", v)
-//	for strings.HasPrefix(t, "*") {
-//		t = t[1:]
-//	}
-//	return entity(t)
-//}
-//
-//type entity string
-//
-//var (
-//	entUser         entity = typeName(user.User{})
-//	organization entity = "organization.Organization"
-//	campaign     entity = "campaign.Campaign"
-//)
-//
-//type operation string
-//
-//const (
-//	opCreate   operation = "create"
-//	opRetrieve operation = "retrieve"
-//	opUpdate   operation = "update"
-//	opDelete   operation = "delete"
-//)
-
-//var sqlStatements = map[entity]map[operation]string{}
-
 func withConn(ctx context.Context, f func(conn *pgxpool.Conn) (int, string)) (int, string) {
 	conn, err := db.Get(ctx)
 	if err != nil {
@@ -60,9 +33,6 @@ type fieldsValsAware interface {
 }
 
 func Create[T fieldsValsAware](ctx context.Context, ops Ops[T], t T) (int, string) {
-	typeOfT := fmt.Sprintf("%T", t)
-	fmt.Println(typeOfT)
-
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		if _, err := conn.Exec(ctx, ops.Create, t.FieldsVals()...); err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to insert %T %v: %w", t, t, err).Error()
@@ -90,6 +60,10 @@ func Retrieve[T fieldsPtrsAware](ctx context.Context, ops Ops[T], id string) (in
 
 			if errors.Is(err, pgx.ErrNoRows) {
 				return http.StatusNotFound, body
+			}
+
+			if errors.Is(err, pgx.ErrTooManyRows) {
+				return http.StatusConflict, body
 			}
 
 			return http.StatusInternalServerError, body

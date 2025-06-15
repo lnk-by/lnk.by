@@ -3,10 +3,10 @@ package user
 import "github.com/lnk.by/shared/service"
 
 type User struct {
-	ID             string `db:"id" json:"id"`
-	Email          string `db:"email" json:"email"`
-	Name           string `db:"name" json:"name"`
-	OrganizationID string `db:"organization_id" json:"organizationId"`
+	ID             string `json:"id"`
+	Email          string `json:"email"`
+	Name           string `json:"name"`
+	OrganizationID string `json:"organizationId"`
 }
 
 func (u *User) FieldsPtrs() []any {
