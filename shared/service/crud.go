@@ -11,12 +11,10 @@ import (
 	"net/http"
 )
 
-type Ops[T any] struct {
-	Create   string
-	Retrieve string
-	Update   string
-	Delete   string
-}
+type CreateSQL[T any] string
+type RetrieveSQL[T any] string
+type UpdateSQL[T any] string
+type DeleteSQL[T any] string
 
 func withConn(ctx context.Context, f func(conn *pgxpool.Conn) (int, string)) (int, string) {
 	conn, err := db.Get(ctx)
@@ -32,9 +30,9 @@ type fieldsValsAware interface {
 	FieldsVals() []any
 }
 
-func Create[T fieldsValsAware](ctx context.Context, ops Ops[T], t T) (int, string) {
+func Create[T fieldsValsAware](ctx context.Context, createSQL CreateSQL[T], t T) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
-		if _, err := conn.Exec(ctx, ops.Create, t.FieldsVals()...); err != nil {
+		if _, err := conn.Exec(ctx, string(createSQL), t.FieldsVals()...); err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to insert %T %v: %w", t, t, err).Error()
 		}
 
@@ -52,10 +50,10 @@ type fieldsPtrsAware interface {
 	FieldsPtrs() []any
 }
 
-func Retrieve[T fieldsPtrsAware](ctx context.Context, ops Ops[T], id string) (int, string) {
+func Retrieve[T fieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		var t T
-		if err := conn.QueryRow(ctx, ops.Retrieve, id).Scan(t.FieldsPtrs()...); err != nil {
+		if err := conn.QueryRow(ctx, string(retrieveSQL), id).Scan(t.FieldsPtrs()...); err != nil {
 			body := fmt.Errorf("failed to retrieve the %T with id %q not found: %w", t, id, err).Error()
 
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -78,9 +76,9 @@ func Retrieve[T fieldsPtrsAware](ctx context.Context, ops Ops[T], id string) (in
 	})
 }
 
-func Update[T fieldsValsAware](ctx context.Context, ops Ops[T], t T) (int, string) {
+func Update[T fieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], t T) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
-		commandTag, err := conn.Exec(ctx, ops.Update, t.FieldsVals()...)
+		commandTag, err := conn.Exec(ctx, string(updateSQL), t.FieldsVals()...)
 		if err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to update %T %v: %w", t, t, err).Error()
 		}
@@ -98,9 +96,9 @@ func Update[T fieldsValsAware](ctx context.Context, ops Ops[T], t T) (int, strin
 	})
 }
 
-func Delete[T any](ctx context.Context, ops Ops[T], id string) (int, string) {
+func Delete[T any](ctx context.Context, deleteSQL DeleteSQL[T], id string) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
-		commandTag, err := conn.Exec(ctx, ops.Delete, id)
+		commandTag, err := conn.Exec(ctx, string(deleteSQL), id)
 		if err != nil {
 			var t T // only to build the error
 			return http.StatusInternalServerError, fmt.Errorf("failed to delete %T with id %v: %w", t, t, err).Error()

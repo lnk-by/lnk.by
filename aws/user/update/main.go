@@ -10,7 +10,7 @@ import (
 
 func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
 	var u user.User // TODO build user from request
-	status, body := service.Update[*user.User](ctx, user.Ops, &u)
+	status, body := service.Update[*user.User](ctx, user.UpdateSQL, &u)
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 

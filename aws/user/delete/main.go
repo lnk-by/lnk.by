@@ -10,7 +10,7 @@ import (
 
 func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
 	var userID string // TODO build user from request
-	status, body := service.Delete(ctx, user.Ops, userID)
+	status, body := service.Delete(ctx, user.DeleteSQL, userID)
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 

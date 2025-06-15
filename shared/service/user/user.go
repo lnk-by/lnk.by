@@ -17,9 +17,9 @@ func (u *User) FieldsVals() []any {
 	return []any{u.ID, u.Email, u.Name, u.OrganizationID}
 }
 
-var Ops = service.Ops[*User]{
-	Create:   "INSERT INTO users (id, email, name, organization_id) VALUES ($1, $2, $3, $4)",
-	Retrieve: "SELECT id, email, name, organization_id FROM users WHERE id = $1",
-	Update:   "UPDATE users SET email = $2, name = $3, organization_id = $4 WHERE id = $1",
-	Delete:   "DELETE FROM users WHERE id = $1",
-}
+var (
+	CreateSQL   service.CreateSQL[*User]   = "INSERT INTO users (id, email, name, organization_id) VALUES ($1, $2, $3, $4)"
+	RetrieveSQL service.RetrieveSQL[*User] = "SELECT id, email, name, organization_id FROM users WHERE id = $1"
+	UpdateSQL   service.UpdateSQL[*User]   = "UPDATE users SET email = $2, name = $3, organization_id = $4 WHERE id = $1"
+	DeleteSQL   service.DeleteSQL[*User]   = "DELETE FROM users WHERE id = $1"
+)

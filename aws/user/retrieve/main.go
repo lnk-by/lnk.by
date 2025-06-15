@@ -9,7 +9,7 @@ import (
 )
 
 func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
-	status, body := service.Retrieve(ctx, user.Ops, request.PathParameters["userId"])
+	status, body := service.Retrieve(ctx, user.RetrieveSQL, request.PathParameters["userId"])
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 
