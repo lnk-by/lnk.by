@@ -1,6 +1,8 @@
 package user
 
-import "github.com/lnk.by/shared/service"
+import (
+	"github.com/lnk.by/shared/service"
+)
 
 type User struct {
 	ID             string `json:"id"`
@@ -16,6 +18,8 @@ func (u *User) FieldsPtrs() []any {
 func (u *User) FieldsVals() []any {
 	return []any{u.ID, u.Email, u.Name, u.OrganizationID}
 }
+
+const UserIdParam = "userId"
 
 var (
 	CreateSQL   service.CreateSQL[*User]   = "INSERT INTO users (id, email, name, organization_id) VALUES ($1, $2, $3, $4)"
