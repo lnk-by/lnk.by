@@ -3,12 +3,9 @@ package common
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log/slog"
-	"strconv"
-
 	"github.com/aws/aws-lambda-go/events"
+	"log/slog"
 )
 
 var logger = slog.Default()
@@ -43,13 +40,12 @@ func UpdateAdapter[T any, ID any](
 		var input T
 		err := json.Unmarshal([]byte(request.Body), &input)
 		if err != nil {
-			logger.Warn("Failed to parse request", "error", err)
-			return badRequestResponse(err), nil
+			return badRequestResponse(fmt.Errorf("failed to parse request: %w", err)), nil
 		}
 
 		idStr, ok := request.PathParameters[pathParamName]
 		if !ok {
-			return badRequestResponse(errors.New(fmt.Sprintf("Parameter %s does not exist", pathParamName))), nil
+			return badRequestResponse(fmt.Errorf("parameter %q does not exist", pathParamName)), nil
 		}
 		id, err := idParser(idStr)
 		if err != nil {
@@ -67,8 +63,4 @@ func UpdateAdapter[T any, ID any](
 
 func StringIDParser(s string) (string, error) {
 	return s, nil
-}
-
-func IntIDParser(s string) (int, error) {
-	return strconv.Atoi(s)
 }
