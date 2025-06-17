@@ -10,7 +10,7 @@ import (
 )
 
 func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
-	status, body := service.Delete(ctx, user.DeleteSQL, request.PathParameters[user.UserIdParam])
+	status, body := service.Delete(ctx, user.DeleteSQL, request.PathParameters[user.IdParam])
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 

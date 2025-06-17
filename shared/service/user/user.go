@@ -1,6 +1,7 @@
 package user
 
 import (
+	"errors"
 	"github.com/lnk.by/shared/service"
 )
 
@@ -19,7 +20,23 @@ func (u *User) FieldsVals() []any {
 	return []any{u.ID, u.Email, u.Name, u.OrganizationID}
 }
 
-const UserIdParam = "userId"
+func (u *User) Validate() error {
+	if u.Email == "" {
+		return errors.New("email is required")
+	}
+
+	if u.Name == "" {
+		return errors.New("name is required")
+	}
+
+	if u.ID != "" {
+		return errors.New("user ID is managed by the server")
+	}
+
+	return nil
+}
+
+const IdParam = "userId"
 
 var (
 	CreateSQL   service.CreateSQL[*User]   = "INSERT INTO user (id, email, name, organization_id) VALUES ($1, $2, $3, $4)"

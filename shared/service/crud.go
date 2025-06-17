@@ -29,12 +29,21 @@ func withConn(ctx context.Context, f func(conn *pgxpool.Conn) (int, string)) (in
 	return f(conn)
 }
 
+type validatable interface {
+	Validate() error
+}
+
 type fieldsValsAware interface {
+	validatable
 	FieldsVals() []any
 }
 
 func Create[T fieldsValsAware](ctx context.Context, createSQL CreateSQL[T], t T) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
+		if err := t.Validate(); err != nil {
+			return http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err).Error()
+		}
+
 		if _, err := conn.Exec(ctx, string(createSQL), t.FieldsVals()...); err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to insert %T %v: %w", t, t, err).Error()
 		}
@@ -81,6 +90,10 @@ func Retrieve[T fieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 
 func Update[T fieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], t T) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
+		if err := t.Validate(); err != nil {
+			return http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err).Error()
+		}
+
 		commandTag, err := conn.Exec(ctx, string(updateSQL), t.FieldsVals()...)
 		if err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to update %T %v: %w", t, t, err).Error()
