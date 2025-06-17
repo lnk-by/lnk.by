@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -56,26 +57,47 @@ type validatable interface {
 	Validate() error
 }
 
+type idAware interface {
+	WithId(id string)
+}
+
 type fieldsValsAware interface {
 	validatable
+	idAware
 	FieldsVals() []any
 }
 
 func Create[T fieldsValsAware](ctx context.Context, createSQL CreateSQL[T], t T) (int, string) {
+	status, body := CreateWithRetries(ctx, createSQL, t, 1)
+	return status, body
+}
+
+func CreateWithRetries[T fieldsValsAware](ctx context.Context, createSQL CreateSQL[T], t T, maxAttempts int) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
-		if err := t.Validate(); err != nil {
-			return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err))
+		for i := 0; i < maxAttempts; i++ {
+			if err := t.Validate(); err != nil {
+				return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err))
+			}
+
+			if _, err := conn.Exec(ctx, string(createSQL), t.FieldsVals()...); err != nil {
+				if isDuplicateKeyError(err) {
+					continue // try again
+				}
+				return failed(http.StatusInternalServerError, fmt.Errorf("failed to insert %T %v: %w", t, t, err))
+			}
+
+			return succeeded(http.StatusCreated, t)
 		}
 
-		if _, err := conn.Exec(ctx, string(createSQL), t.FieldsVals()...); err != nil {
-			return failed(http.StatusInternalServerError, fmt.Errorf("failed to insert %T %v: %w", t, t, err))
-		}
-
-		return succeeded(http.StatusCreated, t)
+		return http.StatusConflict, fmt.Errorf("failed to create unique identifier").Error()
 	})
 }
 
-type fieldsPtrsAware interface {
+func isDuplicateKeyError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "duplicate key")
+}
+
+type FieldsPtrsAware interface {
 	FieldsPtrs() []any
 }
 
@@ -83,7 +105,7 @@ func inst[T any]() T {
 	return reflect.New(reflect.TypeFor[T]().Elem()).Interface().(T)
 }
 
-func Retrieve[T fieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
+func Retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		t := inst[T]()
 		if err := conn.QueryRow(ctx, string(retrieveSQL), id).Scan(t.FieldsPtrs()...); err != nil {
@@ -101,12 +123,12 @@ func Retrieve[T fieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 	})
 }
 
-func Update[T fieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], t T) (int, string) {
+func Update[T fieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], id string, t T) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		if err := t.Validate(); err != nil {
 			return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err))
 		}
-
+		t.WithId(id)
 		commandTag, err := conn.Exec(ctx, string(updateSQL), t.FieldsVals()...)
 		switch {
 		case err != nil:
@@ -140,7 +162,7 @@ func Delete[T any](ctx context.Context, deleteSQL DeleteSQL[T], id string) (int,
 	})
 }
 
-func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int, limit int) (int, string) {
+func List[T FieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int, limit int) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		sql := string(listSQL)
 
