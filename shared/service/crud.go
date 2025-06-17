@@ -148,26 +148,20 @@ func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 		buf.WriteByte('[')
 
 		t := inst[T]()
-		for rows.Next() {
-			if err := rows.Scan(t.FieldsPtrs()...); err != nil {
-				body := fmt.Errorf("failed to scan row for %T: %w", t, err).Error()
-				return http.StatusInternalServerError, body
-			}
-
+		if _, err := pgx.ForEachRow(rows, t.FieldsPtrs(), func() error {
 			if buf.Len() > 0 {
 				buf.WriteByte(',')
 			}
 
 			jsonBytes, err := json.Marshal(t)
 			if err != nil {
-				return http.StatusInternalServerError, fmt.Errorf("failed to marshal entity: %w", err).Error()
+				return fmt.Errorf("failed to marshal entity: %w", err)
 			}
 			buf.Write(jsonBytes)
-		}
 
-		if err := rows.Err(); err != nil {
-			body := fmt.Errorf("failed to iterate rows for %T: %w", t, err).Error()
-			return http.StatusInternalServerError, body
+			return nil
+		}); err != nil {
+			return http.StatusInternalServerError, fmt.Errorf("failed to iterate over rows: %w", err).Error()
 		}
 
 		buf.WriteByte(']')
