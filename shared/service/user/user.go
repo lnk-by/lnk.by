@@ -26,4 +26,5 @@ var (
 	RetrieveSQL service.RetrieveSQL[*User] = "SELECT id, email, name, organization_id FROM users WHERE id = $1"
 	UpdateSQL   service.UpdateSQL[*User]   = "UPDATE users SET email = $2, name = $3, organization_id = $4 WHERE id = $1"
 	DeleteSQL   service.DeleteSQL[*User]   = "DELETE FROM users WHERE id = $1"
+	ListSQL     service.ListSQL[*User]     = "SELECT id, email, name, organization_id FROM users"
 )
