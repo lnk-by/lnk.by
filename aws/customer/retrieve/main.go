@@ -6,11 +6,11 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/lnk.by/shared/service"
-	"github.com/lnk.by/shared/service/user"
+	"github.com/lnk.by/shared/service/customer"
 )
 
 func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
-	status, body := service.Delete(ctx, user.DeleteSQL, request.PathParameters[user.IdParam])
+	status, body := service.Retrieve(ctx, customer.RetrieveSQL, request.PathParameters[customer.IdParam])
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 

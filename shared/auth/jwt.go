@@ -1,21 +1,22 @@
 package auth
 
 import (
-	"github.com/golang-jwt/jwt/v5"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var jwtSecret = []byte("your-secret")
 
 type Claims struct {
-	UserID         string `json:"userId"`
+	CustomerID     string `json:"userId"`
 	OrganizationID string `json:"organizationId"`
 	jwt.RegisteredClaims
 }
 
-func GenerateJWT(userID, orgID string) (string, error) {
+func GenerateJWT(customerID, orgID string) (string, error) {
 	claims := Claims{
-		UserID:         userID,
+		CustomerID:     customerID,
 		OrganizationID: orgID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
