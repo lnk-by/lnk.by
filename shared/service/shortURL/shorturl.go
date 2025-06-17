@@ -21,5 +21,5 @@ var (
 	RetrieveSQL service.RetrieveSQL[*ShortURL] = "SELECT key, target, campaign_id FROM short_url WHERE key = $1"
 	UpdateSQL   service.UpdateSQL[*ShortURL]   = "UPDATE short_url SET target = $2, campaign_id = $3 WHERE key = $1"
 	DeleteSQL   service.DeleteSQL[*ShortURL]   = "DELETE FROM short_url WHERE key = $1"
-	ListSQL     service.ListSQL[*ShortURL]     = "SELECT key, target, campaign_id FROM short_url"
+	ListSQL     service.ListSQL[*ShortURL]     = "SELECT key, target, campaign_id FROM short_url OFFSET $1 LIMIT $2"
 )

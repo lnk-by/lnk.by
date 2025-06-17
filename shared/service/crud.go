@@ -115,32 +115,11 @@ func Delete[T any](ctx context.Context, deleteSQL DeleteSQL[T], id string) (int,
 	})
 }
 
-<<<<<<< HEAD
 func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int, limit int) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		sql := string(listSQL)
 
 		rows, err := conn.Query(ctx, sql, offset, limit)
-=======
-func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], limit, offset int) (int, string) {
-	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
-		sql := string(listSQL)
-		var args []any
-		argPos := 1
-
-		if limit > 0 {
-			sql += fmt.Sprintf(" LIMIT $%d", argPos)
-			args = append(args, limit)
-			argPos++
-		}
-		if offset > 0 {
-			sql += fmt.Sprintf(" OFFSET $%d", argPos)
-			args = append(args, offset)
-			argPos++
-		}
-
-		rows, err := conn.Query(ctx, sql, args...)
->>>>>>> 819c762 (issue-1: implemented list of entities with optional limit and offset)
 		if err != nil {
 			body := fmt.Errorf("failed to execute list query for %T: %w", new(T), err).Error()
 			return http.StatusInternalServerError, body
@@ -167,21 +146,13 @@ func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], limit, off
 
 			jsonBytes, err := json.Marshal(t)
 			if err != nil {
-<<<<<<< HEAD
 				return http.StatusInternalServerError, fmt.Errorf("failed to marshal entity: %w", err).Error()
-=======
-				return http.StatusInternalServerError, fmt.Errorf("marshal error: %w", err).Error()
->>>>>>> 819c762 (issue-1: implemented list of entities with optional limit and offset)
 			}
 			buf.Write(jsonBytes)
 		}
 
 		if err := rows.Err(); err != nil {
-<<<<<<< HEAD
 			body := fmt.Errorf("failed to iterate rows for %T: %w", new(T), err).Error()
-=======
-			body := fmt.Errorf("error occurred while iterating rows for %T: %w", new(T), err).Error()
->>>>>>> 819c762 (issue-1: implemented list of entities with optional limit and offset)
 			return http.StatusInternalServerError, body
 		}
 

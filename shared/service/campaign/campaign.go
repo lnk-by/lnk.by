@@ -20,5 +20,5 @@ var (
 	RetrieveSQL service.RetrieveSQL[*Campaign] = "SELECT id, name FROM organization WHERE id = $1"
 	UpdateSQL   service.UpdateSQL[*Campaign]   = "UPDATE organization SET name = $2 WHERE id = $1"
 	DeleteSQL   service.DeleteSQL[*Campaign]   = "DELETE FROM user WHERE id = $1"
-	ListSQL     service.ListSQL[*Campaign]     = "SELECT id, name FROM organization"
+	ListSQL     service.ListSQL[*Campaign]     = "SELECT id, name FROM organization OFFSET $1 LIMIT $2"
 )

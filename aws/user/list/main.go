@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -14,15 +15,15 @@ import (
 
 func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
 	params := request.QueryStringParameters
-	limit, err := parseQueryInt(params, "limit", 0)
-	if err != nil {
-		return badRequestResponse(err)
-	}
 	offset, err := parseQueryInt(params, "offset", 0)
 	if err != nil {
 		return badRequestResponse(err)
 	}
-	status, body := service.List(ctx, user.ListSQL, limit, offset)
+	limit, err := parseQueryInt(params, "limit", math.MaxInt32)
+	if err != nil {
+		return badRequestResponse(err)
+	}
+	status, body := service.List(ctx, user.ListSQL, offset, limit)
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 
@@ -40,7 +41,7 @@ func parseQueryInt(params map[string]string, key string, defaultValue int) (int,
 	}
 	val, err := strconv.Atoi(valStr)
 	if err != nil {
-		return 0, fmt.Errorf("invalid value for '%s': '%s' is not an integer", key, valStr)
+		return 0, fmt.Errorf("failed to invalid value for %q: %q is not an integer", key, valStr)
 	}
 	return val, nil
 }
