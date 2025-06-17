@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/lnk.by/shared/service"
@@ -9,7 +10,7 @@ import (
 )
 
 func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
-	status, body := service.Retrieve(ctx, user.RetrieveSQL, request.PathParameters["userId"])
+	status, body := service.Retrieve(ctx, user.RetrieveSQL, request.PathParameters[user.UserIdParam])
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 
