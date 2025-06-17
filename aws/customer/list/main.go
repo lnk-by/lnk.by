@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/lnk.by/shared/service"
-	"github.com/lnk.by/shared/service/user"
+	"github.com/lnk.by/shared/service/customer"
 )
 
 func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
@@ -23,7 +23,7 @@ func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) e
 	if err != nil {
 		return badRequestResponse(err)
 	}
-	status, body := service.List(ctx, user.ListSQL, offset, limit)
+	status, body := service.List(ctx, customer.ListSQL, offset, limit)
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 
