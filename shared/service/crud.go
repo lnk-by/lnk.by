@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -49,12 +50,12 @@ func Create[T fieldsValsAware](ctx context.Context, createSQL CreateSQL[T], t T)
 		}
 
 		// TODO do we need to return it here?
-		bytes, err := json.Marshal(t)
+		jsonBytes, err := json.Marshal(t)
 		if err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err).Error()
 		}
 
-		return http.StatusCreated, string(bytes)
+		return http.StatusCreated, string(jsonBytes)
 	})
 }
 
@@ -62,9 +63,13 @@ type fieldsPtrsAware interface {
 	FieldsPtrs() []any
 }
 
+func inst[T any]() T {
+	return reflect.New(reflect.TypeFor[T]().Elem()).Interface().(T)
+}
+
 func Retrieve[T fieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
-		var t T
+		t := inst[T]()
 		if err := conn.QueryRow(ctx, string(retrieveSQL), id).Scan(t.FieldsPtrs()...); err != nil {
 			body := fmt.Errorf("failed to retrieve the %T with id %q not found: %w", t, id, err).Error()
 
@@ -79,12 +84,12 @@ func Retrieve[T fieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 			return http.StatusInternalServerError, body
 		}
 
-		bytes, err := json.Marshal(t)
+		jsonBytes, err := json.Marshal(t)
 		if err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err).Error()
 		}
 
-		return http.StatusOK, string(bytes)
+		return http.StatusOK, string(jsonBytes)
 	})
 }
 
@@ -102,13 +107,12 @@ func Update[T fieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], t T)
 			return http.StatusNotFound, fmt.Errorf("failed to update %T %v: %w", t, t, err).Error()
 		}
 
-		// TODO do we need to return it here?
-		bytes, err := json.Marshal(t)
+		jsonBytes, err := json.Marshal(t)
 		if err != nil {
 			return http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err).Error()
 		}
 
-		return http.StatusOK, string(bytes)
+		return http.StatusOK, string(jsonBytes)
 	})
 }
 
@@ -117,11 +121,11 @@ func Delete[T any](ctx context.Context, deleteSQL DeleteSQL[T], id string) (int,
 		commandTag, err := conn.Exec(ctx, string(deleteSQL), id)
 		if err != nil {
 			var t T // only to build the error
-			return http.StatusInternalServerError, fmt.Errorf("failed to delete %T with id %v: %w", t, t, err).Error()
+			return http.StatusInternalServerError, fmt.Errorf("failed to delete %T with id %v: %w", t, id, err).Error()
 		}
 		if commandTag.RowsAffected() == 0 {
 			var t T // only to build the error
-			return http.StatusNotFound, fmt.Errorf("failed to delete %T %v: %w", t, t, err).Error()
+			return http.StatusNotFound, fmt.Errorf("failed to delete %T with id %v: no rows affected", t, id).Error()
 		}
 
 		return http.StatusNoContent, ""
@@ -143,18 +147,15 @@ func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 
 		buf.WriteByte('[')
 
-		first := true
+		t := inst[T]()
 		for rows.Next() {
-			var t T
 			if err := rows.Scan(t.FieldsPtrs()...); err != nil {
 				body := fmt.Errorf("failed to scan row for %T: %w", t, err).Error()
 				return http.StatusInternalServerError, body
 			}
 
-			if !first {
+			if buf.Len() > 0 {
 				buf.WriteByte(',')
-			} else {
-				first = false
 			}
 
 			jsonBytes, err := json.Marshal(t)
@@ -165,7 +166,7 @@ func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 		}
 
 		if err := rows.Err(); err != nil {
-			body := fmt.Errorf("failed to iterate rows for %T: %w", new(T), err).Error()
+			body := fmt.Errorf("failed to iterate rows for %T: %w", t, err).Error()
 			return http.StatusInternalServerError, body
 		}
 

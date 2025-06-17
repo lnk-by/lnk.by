@@ -1,15 +1,19 @@
 package service
 
 import (
-	// "context"
-	// "fmt"
-
-	// "github.com/lnk.by/shared/service"
+	"github.com/stretchr/testify/assert"
 	"testing"
-	// "github.com/lnk.by/shared/service/user"
 )
 
-func TestCreate(t *testing.T) {
-	// status, body := Create[*user.User](context.Background(), user.CreateSQL, &user.User{})
-	// fmt.Println(status, body)
+type shit struct {
+	f1 string
+	f2 int
+}
+
+func (s *shit) fieldsPtrs() []any { return []any{&s.f1, &s.f2} }
+
+func TestInst(t *testing.T) {
+	shitPtr := inst[*shit]()
+	assert.NotNil(t, shitPtr)
+	assert.NotNil(t, shitPtr.fieldsPtrs())
 }
