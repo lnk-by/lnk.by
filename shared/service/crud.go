@@ -138,8 +138,7 @@ func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 
 		rows, err := conn.Query(ctx, sql, offset, limit)
 		if err != nil {
-			body := fmt.Errorf("failed to execute list query for %T: %w", new(T), err).Error()
-			return http.StatusInternalServerError, body
+			return http.StatusInternalServerError, fmt.Errorf("failed to execute list query for %T: %w", new(T), err).Error()
 		}
 		defer rows.Close()
 
@@ -149,7 +148,7 @@ func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 
 		t := inst[T]()
 		if _, err := pgx.ForEachRow(rows, t.FieldsPtrs(), func() error {
-			if buf.Len() > 1 {
+			if buf.Len() > 1 { // the buf contains at least one marshalled row
 				buf.WriteByte(',')
 			}
 
