@@ -13,7 +13,7 @@ import (
 	"github.com/lnk.by/shared/service/customer"
 )
 
-func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
+func listCustomers(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
 	params := request.QueryStringParameters
 	offset, err := parseQueryInt(params, "offset", 0)
 	if err != nil {
@@ -47,5 +47,5 @@ func parseQueryInt(params map[string]string, key string, defaultValue int) (int,
 }
 
 func main() {
-	lambda.Start(handleRequest)
+	lambda.Start(listCustomers)
 }

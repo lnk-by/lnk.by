@@ -1,5 +1,3 @@
-// main.go - placeholder for cmd/server/main.go
-
 package main
 
 import "fmt"

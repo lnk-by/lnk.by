@@ -9,11 +9,11 @@ import (
 	"github.com/lnk.by/shared/service/customer"
 )
 
-func handleRequest(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
-	status, body := service.Retrieve(ctx, customer.RetrieveSQL, request.PathParameters[customer.IdParam])
+func deleteCustomer(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
+	status, body := service.Delete(ctx, customer.DeleteSQL, request.PathParameters[customer.IdParam])
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 
 func main() {
-	lambda.Start(handleRequest)
+	lambda.Start(deleteCustomer)
 }
