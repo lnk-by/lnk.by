@@ -149,7 +149,7 @@ func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 
 		t := inst[T]()
 		if _, err := pgx.ForEachRow(rows, t.FieldsPtrs(), func() error {
-			if buf.Len() > 0 {
+			if buf.Len() > 1 {
 				buf.WriteByte(',')
 			}
 
