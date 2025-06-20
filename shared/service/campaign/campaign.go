@@ -1,11 +1,6 @@
 package campaign
 
 import (
-	"errors"
-	"fmt"
-	"log"
-
-	"github.com/gofrs/uuid"
 	"github.com/lnk.by/shared/service"
 	"github.com/lnk.by/shared/utils"
 )
@@ -25,30 +20,28 @@ func (c *Campaign) FieldsPtrs() []any {
 func (c *Campaign) FieldsVals() []any {
 	return []any{c.ID, c.Name, c.OrganizationID, c.CustomerID, c.Status}
 }
-func (u *Campaign) WithId(id string) {
-	u.ID = id
+
+func (c *Campaign) WithId(id string) {
+	c.ID = id
 }
 
 func (c *Campaign) Validate() error {
-	if c.Name == "" {
-		return errors.New("name is required")
+	switch {
+	case c.Name == "":
+		return service.ErrNameRequired
+	case c.ID != "":
+		return service.ErrIDManagedByServer
+	default:
+		return nil
 	}
+}
 
-	if c.ID != "" {
-		return errors.New("user ID is managed by the server")
-	}
+func (c *Campaign) Generate() {
+	c.ID = service.UUID()
 
-	id, err := uuid.NewV1()
-	if err != nil {
-		log.Fatalf("failed to generate UUIDv1: %v", err)
-		return errors.New(fmt.Sprintf("failed to generate UUIDv1: %v", err))
-	}
-	c.ID = id.String()
 	if c.Status == "" {
 		c.Status = utils.StatusActive
 	}
-
-	return nil
 }
 
 const IdParam = "campaignId"

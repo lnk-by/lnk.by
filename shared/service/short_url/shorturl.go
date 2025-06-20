@@ -12,6 +12,7 @@ import (
 
 type ShortURL struct {
 	Key        string       `json:"key"`
+	Custom     bool         `json:"custom"`
 	Target     string       `json:"target"`
 	CampaignID string       `json:"campaignId"`
 	CustomerID string       `json:"customerId"`
@@ -43,18 +44,34 @@ func (u *ShortURL) WithId(key string) {
 }
 
 func (u *ShortURL) Validate() error {
-	if u.Target == "" {
-		return errors.New("Target is required")
+	switch {
+	case u.Target == "":
+		return errors.New("target is required")
+	case u.Custom && u.Key == "":
+		return errors.New("custom short URL requires key")
+	case !u.Custom && u.Key != "":
+		return errors.New("short URL should not have a key")
+	default:
+		return nil
 	}
+}
 
-	if u.Key == "" || !Custom.Contains(u.Key) {
+func (u *ShortURL) Generate() {
+	if u.Key == "" {
 		u.Key = service.EncodeBase62(generator.NextID())
 	}
+
 	if u.Status == "" {
 		u.Status = utils.StatusActive
 	}
+}
 
-	return nil
+func (u *ShortURL) MaxAttempts() int {
+	if u.Custom {
+		return 1
+	}
+
+	return 10
 }
 
 const IdParam = "key"

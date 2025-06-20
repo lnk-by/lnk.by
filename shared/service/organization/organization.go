@@ -1,11 +1,6 @@
 package organization
 
 import (
-	"errors"
-	"fmt"
-	"log"
-
-	"github.com/gofrs/uuid"
 	"github.com/lnk.by/shared/service"
 	"github.com/lnk.by/shared/utils"
 )
@@ -29,25 +24,22 @@ func (o *Organization) WithId(id string) {
 }
 
 func (o *Organization) Validate() error {
-	if o.Name == "" {
-		return errors.New("name is required")
+	switch {
+	case o.Name == "":
+		return service.ErrNameRequired
+	case o.ID != "":
+		return service.ErrIDManagedByServer
+	default:
+		return nil
 	}
+}
 
-	if o.ID != "" {
-		return errors.New("user ID is managed by the server")
-	}
+func (o *Organization) Generate() {
+	o.ID = service.UUID()
 
-	id, err := uuid.NewV1()
-	if err != nil {
-		log.Fatalf("failed to generate UUIDv1: %v", err)
-		return errors.New(fmt.Sprintf("failed to generate UUIDv1: %v", err))
-	}
-	o.ID = id.String()
 	if o.Status == "" {
 		o.Status = utils.StatusActive
 	}
-
-	return nil
 }
 
 const IdParam = "organizationId"

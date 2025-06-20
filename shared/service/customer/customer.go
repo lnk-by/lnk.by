@@ -2,10 +2,6 @@ package customer
 
 import (
 	"errors"
-	"fmt"
-	"log"
-
-	"github.com/gofrs/uuid"
 	"github.com/lnk.by/shared/service"
 	"github.com/lnk.by/shared/utils"
 )
@@ -18,42 +14,37 @@ type Customer struct {
 	Status         utils.Status `json:"status"`
 }
 
-func (u *Customer) FieldsPtrs() []any {
-	return []any{&u.ID, &u.Email, &u.Name, &u.OrganizationID, &u.Status}
+func (c *Customer) FieldsPtrs() []any {
+	return []any{&c.ID, &c.Email, &c.Name, &c.OrganizationID, &c.Status}
 }
 
-func (u *Customer) FieldsVals() []any {
-	return []any{u.ID, u.Email, u.Name, u.OrganizationID, u.Status}
+func (c *Customer) FieldsVals() []any {
+	return []any{c.ID, c.Email, c.Name, c.OrganizationID, c.Status}
 }
 
-func (u *Customer) WithId(id string) {
-	u.ID = id
+func (c *Customer) WithId(id string) {
+	c.ID = id
 }
 
-func (u *Customer) Validate() error {
-	if u.Email == "" {
+func (c *Customer) Validate() error {
+	switch {
+	case c.Name == "":
+		return service.ErrNameRequired
+	case c.ID != "":
+		return service.ErrIDManagedByServer
+	case c.Email == "":
 		return errors.New("email is required")
+	default:
+		return nil
 	}
+}
 
-	if u.Name == "" {
-		return errors.New("name is required")
-	}
+func (c *Customer) Generate() {
+	c.ID = service.UUID()
 
-	if u.ID != "" {
-		return errors.New("user ID is managed by the server")
+	if c.Status == "" {
+		c.Status = utils.StatusActive
 	}
-
-	id, err := uuid.NewV1()
-	if err != nil {
-		log.Fatalf("failed to generate UUIDv1: %v", err)
-		return errors.New(fmt.Sprintf("failed to generate UUIDv1: %v", err))
-	}
-	u.ID = id.String()
-	if u.Status == "" {
-		u.Status = utils.StatusActive
-	}
-
-	return nil
 }
 
 const IdParam = "customerId"
