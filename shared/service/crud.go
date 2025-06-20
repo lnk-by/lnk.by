@@ -20,10 +20,32 @@ type UpdateSQL[T any] string
 type DeleteSQL[T any] string
 type ListSQL[T any] string
 
+type failure struct {
+	Error string `json:"error"`
+}
+
+func failed(status int, err error) (int, string) {
+	jsonBytes, err := json.Marshal(failure{Error: err.Error()})
+	if err != nil {
+		return status, http.StatusText(status)
+	}
+
+	return status, string(jsonBytes)
+}
+
+func succeeded(status int, t any) (int, string) {
+	jsonBytes, err := json.Marshal(t)
+	if err != nil {
+		return failed(http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err))
+	}
+
+	return status, string(jsonBytes)
+}
+
 func withConn(ctx context.Context, f func(conn *pgxpool.Conn) (int, string)) (int, string) {
 	conn, err := db.Get(ctx)
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed to get DB connection: %w", err).Error()
+		return failed(http.StatusInternalServerError, fmt.Errorf("failed to get DB connection: %w", err))
 	}
 	defer conn.Release()
 
@@ -42,20 +64,14 @@ type fieldsValsAware interface {
 func Create[T fieldsValsAware](ctx context.Context, createSQL CreateSQL[T], t T) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		if err := t.Validate(); err != nil {
-			return http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err).Error()
+			return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err))
 		}
 
 		if _, err := conn.Exec(ctx, string(createSQL), t.FieldsVals()...); err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("failed to insert %T %v: %w", t, t, err).Error()
+			return failed(http.StatusInternalServerError, fmt.Errorf("failed to insert %T %v: %w", t, t, err))
 		}
 
-		// TODO do we need to return it here?
-		jsonBytes, err := json.Marshal(t)
-		if err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err).Error()
-		}
-
-		return http.StatusCreated, string(jsonBytes)
+		return succeeded(http.StatusCreated, t)
 	})
 }
 
@@ -71,61 +87,53 @@ func Retrieve[T fieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		t := inst[T]()
 		if err := conn.QueryRow(ctx, string(retrieveSQL), id).Scan(t.FieldsPtrs()...); err != nil {
-			body := fmt.Errorf("failed to retrieve the %T with id %q not found: %w", t, id, err).Error()
-
-			if errors.Is(err, pgx.ErrNoRows) {
-				return http.StatusNotFound, body
+			switch {
+			case errors.Is(err, pgx.ErrNoRows):
+				return failed(http.StatusNotFound, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
+			case errors.Is(err, pgx.ErrTooManyRows):
+				return failed(http.StatusConflict, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
+			default:
+				return failed(http.StatusInternalServerError, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
 			}
-
-			if errors.Is(err, pgx.ErrTooManyRows) {
-				return http.StatusConflict, body
-			}
-
-			return http.StatusInternalServerError, body
 		}
 
-		jsonBytes, err := json.Marshal(t)
-		if err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err).Error()
-		}
-
-		return http.StatusOK, string(jsonBytes)
+		return succeeded(http.StatusOK, t)
 	})
 }
 
 func Update[T fieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], t T) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		if err := t.Validate(); err != nil {
-			return http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err).Error()
+			return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err))
 		}
 
 		commandTag, err := conn.Exec(ctx, string(updateSQL), t.FieldsVals()...)
-		if err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("failed to update %T %v: %w", t, t, err).Error()
-		}
-		if commandTag.RowsAffected() == 0 {
-			return http.StatusNotFound, fmt.Errorf("failed to update %T %v: %w", t, t, err).Error()
-		}
-
-		jsonBytes, err := json.Marshal(t)
-		if err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err).Error()
+		switch {
+		case err != nil:
+			return failed(http.StatusInternalServerError, fmt.Errorf("failed to update %T %v: %w", t, t, err))
+		case commandTag.RowsAffected() == 0:
+			return failed(http.StatusNotFound, fmt.Errorf("failed to update %T %v: %w", t, t, pgx.ErrNoRows))
+		case commandTag.RowsAffected() > 1: // TODO is it too late?
+			return failed(http.StatusConflict, fmt.Errorf("failed to update %T %v: %w", t, t, pgx.ErrTooManyRows))
 		}
 
-		return http.StatusOK, string(jsonBytes)
+		return succeeded(http.StatusOK, t)
 	})
 }
 
 func Delete[T any](ctx context.Context, deleteSQL DeleteSQL[T], id string) (int, string) {
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		commandTag, err := conn.Exec(ctx, string(deleteSQL), id)
-		if err != nil {
+		switch {
+		case err != nil:
 			var t T // only to build the error
-			return http.StatusInternalServerError, fmt.Errorf("failed to delete %T with id %v: %w", t, id, err).Error()
-		}
-		if commandTag.RowsAffected() == 0 {
+			return failed(http.StatusInternalServerError, fmt.Errorf("failed to delete %T with id %v: %w", t, id, err))
+		case commandTag.RowsAffected() == 0:
 			var t T // only to build the error
-			return http.StatusNotFound, fmt.Errorf("failed to delete %T with id %v: no rows affected", t, id).Error()
+			return failed(http.StatusNotFound, fmt.Errorf("failed to delete %T with id %v: %w", t, id, pgx.ErrNoRows))
+		case commandTag.RowsAffected() > 1: // TODO is it too late?
+			var t T // only to build the error
+			return failed(http.StatusNotFound, fmt.Errorf("failed to delete %T with id %v: %w", t, id, pgx.ErrTooManyRows))
 		}
 
 		return http.StatusNoContent, ""
@@ -138,7 +146,7 @@ func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 
 		rows, err := conn.Query(ctx, sql, offset, limit)
 		if err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("failed to execute list query for %T: %w", new(T), err).Error()
+			return failed(http.StatusInternalServerError, fmt.Errorf("failed to execute list query for %T: %w", new(T), err))
 		}
 		defer rows.Close()
 
@@ -160,7 +168,7 @@ func List[T fieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 
 			return nil
 		}); err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("failed to iterate over rows: %w", err).Error()
+			return failed(http.StatusInternalServerError, fmt.Errorf("failed to iterate over rows: %w", err))
 		}
 
 		buf.WriteByte(']')
