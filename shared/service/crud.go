@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -61,18 +62,37 @@ type idAware interface {
 	WithId(id string)
 }
 
-type fieldsValsAware interface {
+type FieldsValsAware interface {
 	validatable
 	idAware
 	FieldsVals() []any
 }
 
-func Create[T fieldsValsAware](ctx context.Context, createSQL CreateSQL[T], t T) (int, string) {
-	status, body := CreateWithRetries(ctx, createSQL, t, 1)
+func decode[T any](content io.ReadCloser) (t T, err error) {
+	defer func() {
+		if closeErr := content.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}()
+
+	t = inst[T]()
+	if err = json.NewDecoder(content).Decode(t); err != nil {
+		err = fmt.Errorf("failed to decode %T from JSON: %w", t, err)
+	}
+	return
+}
+
+func Create[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], content io.ReadCloser) (int, string) {
+	status, body := CreateWithRetries(ctx, createSQL, content, 1)
 	return status, body
 }
 
-func CreateWithRetries[T fieldsValsAware](ctx context.Context, createSQL CreateSQL[T], t T, maxAttempts int) (int, string) {
+func CreateWithRetries[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], content io.ReadCloser, maxAttempts int) (int, string) {
+	t, err := decode[T](content)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed to create %T: %w", t, err).Error()
+	}
+
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		for i := 0; i < maxAttempts; i++ {
 			if err := t.Validate(); err != nil {
@@ -123,7 +143,12 @@ func Retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 	})
 }
 
-func Update[T fieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], id string, t T) (int, string) {
+func Update[T FieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], id string, content io.ReadCloser) (int, string) {
+	t, err := decode[T](content)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed to update %T: %w", t, err).Error()
+	}
+
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		if err := t.Validate(); err != nil {
 			return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err))
