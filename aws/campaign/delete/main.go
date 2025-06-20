@@ -4,13 +4,12 @@ import (
 	"context"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/lnk.by/shared/service"
+	"github.com/lnk.by/aws/adapter"
 	"github.com/lnk.by/shared/service/campaign"
 )
 
-func deleteCampaign(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
-	status, body := service.Delete(ctx, campaign.DeleteSQL, request.PathParameters[campaign.IdParam])
-	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
+func deleteCampaign(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	return adapter.Delete(ctx, request, campaign.DeleteSQL, campaign.IdParam), nil
 }
 
 func main() {
