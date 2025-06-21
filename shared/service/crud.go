@@ -68,29 +68,31 @@ type FieldsValsAware interface {
 	FieldsVals() []any
 }
 
-func decode[T any](content io.ReadCloser) (t T, err error) {
-	defer func() {
-		if closeErr := content.Close(); closeErr != nil {
-			err = errors.Join(err, closeErr)
-		}
-	}()
-
+func decode[T any](content []byte) (t T, err error) {
 	t = inst[T]()
-	if err = json.NewDecoder(content).Decode(t); err != nil {
-		err = fmt.Errorf("failed to decode %T from JSON: %w", t, err)
+	if err = json.Unmarshal(content, t); err != nil {
+		err = fmt.Errorf("failed to unmarshal %T from JSON: %w", t, err)
 	}
 	return
 }
 
-func Create[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], content io.ReadCloser) (int, string) {
+func CreateFromReqBody[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], body io.ReadCloser) (int, string) {
+	content, err := io.ReadAll(body)
+	if err != nil {
+		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
+	}
+	return Create(ctx, createSQL, content)
+}
+
+func Create[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], content []byte) (int, string) {
 	status, body := CreateWithRetries(ctx, createSQL, content, 1)
 	return status, body
 }
 
-func CreateWithRetries[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], content io.ReadCloser, maxAttempts int) (int, string) {
+func CreateWithRetries[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], content []byte, maxAttempts int) (int, string) {
 	t, err := decode[T](content)
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed to create %T: %w", t, err).Error()
+		return failed(http.StatusInternalServerError, fmt.Errorf("failed to create %T: %w", t, err))
 	}
 
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
@@ -143,7 +145,15 @@ func Retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 	})
 }
 
-func Update[T FieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], id string, content io.ReadCloser) (int, string) {
+func UpdateFromReqBody[T FieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], id string, body io.ReadCloser) (int, string) {
+	content, err := io.ReadAll(body)
+	if err != nil {
+		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
+	}
+	return Update(ctx, updateSQL, id, content)
+}
+
+func Update[T FieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], id string, content []byte) (int, string) {
 	t, err := decode[T](content)
 	if err != nil {
 		return http.StatusInternalServerError, fmt.Errorf("failed to update %T: %w", t, err).Error()

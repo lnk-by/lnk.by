@@ -70,43 +70,23 @@ func parseQueryInt(c *gin.Context, key string, defaultValue int) (int, error) {
 	return val, nil
 }
 
-func listHandler[T service.FieldsPtrsAware](sql service.ListSQL[T]) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		list(c, sql)
-	}
-}
-
-func retrieveHandler[T service.FieldsPtrsAware](sql service.RetrieveSQL[T]) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		retrieve(c, sql)
-	}
-}
-
 func retrieve[T service.FieldsPtrsAware](c *gin.Context, sql service.RetrieveSQL[T]) {
-	id := c.Param("id")
-	status, body := service.Retrieve(c.Request.Context(), sql, id)
+	status, body := service.Retrieve(c.Request.Context(), sql, c.Param("id"))
 	respondWithJSON(c, status, body)
 }
 
 func create[T service.FieldsValsAware](c *gin.Context, sql service.CreateSQL[T]) {
-	status, body := service.Create(c.Request.Context(), sql, c.Request.Body)
+	status, body := service.CreateFromReqBody(c.Request.Context(), sql, c.Request.Body)
 	respondWithJSON(c, status, body)
 }
 
 func update[T service.FieldsValsAware](c *gin.Context, sql service.UpdateSQL[T]) {
-	status, body := service.Update(c.Request.Context(), sql, c.Param("id"), c.Request.Body)
+	status, body := service.UpdateFromReqBody(c.Request.Context(), sql, c.Param("id"), c.Request.Body)
 	respondWithJSON(c, status, body)
 }
 
-func deleteHandler[T service.FieldsPtrsAware](sql service.DeleteSQL[T]) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		deleteEntity(c, sql)
-	}
-}
-
 func deleteEntity[T service.FieldsPtrsAware](c *gin.Context, sql service.DeleteSQL[T]) {
-	id := c.Param("id")
-	status, body := service.Delete(c.Request.Context(), sql, id)
+	status, body := service.Delete(c.Request.Context(), sql, c.Param("id"))
 	respondWithJSON(c, status, body)
 }
 
@@ -136,27 +116,27 @@ func main() {
 
 	router.POST("/customers", func(c *gin.Context) { create(c, customer.CreateSQL) })
 	router.PUT("/customers/:id", func(c *gin.Context) { update(c, customer.UpdateSQL) })
-	router.GET("/customers", listHandler(customer.ListSQL))
-	router.GET("/customers/:id", retrieveHandler(customer.RetrieveSQL))
-	router.DELETE("/customers/:id", deleteHandler(customer.DeleteSQL))
+	router.GET("/customers", func(c *gin.Context) { list(c, customer.ListSQL) })
+	router.GET("/customers/:id", func(c *gin.Context) { retrieve(c, customer.RetrieveSQL) })
+	router.DELETE("/customers/:id", func(c *gin.Context) { deleteEntity(c, customer.DeleteSQL) })
 
 	router.POST("/organizations", func(c *gin.Context) { create(c, organization.CreateSQL) })
 	router.PUT("/organizations/:id", func(c *gin.Context) { update(c, organization.UpdateSQL) })
-	router.GET("/organizations", listHandler(organization.ListSQL))
-	router.GET("/organizations/:id", retrieveHandler(organization.RetrieveSQL))
-	router.DELETE("/organizations/:id", deleteHandler(organization.DeleteSQL))
+	router.GET("/organizations", func(c *gin.Context) { list(c, organization.ListSQL) })
+	router.GET("/organizations/:id", func(c *gin.Context) { retrieve(c, organization.RetrieveSQL) })
+	router.DELETE("/organizations/:id", func(c *gin.Context) { deleteEntity(c, organization.DeleteSQL) })
 
 	router.POST("/campaigns", func(c *gin.Context) { create(c, campaign.CreateSQL) })
 	router.PUT("/campaigns/:id", func(c *gin.Context) { update(c, campaign.UpdateSQL) })
-	router.GET("/campaigns", listHandler(campaign.ListSQL))
-	router.GET("/campaigns/:id", retrieveHandler(campaign.RetrieveSQL))
-	router.DELETE("/campaigns/:id", deleteHandler(campaign.DeleteSQL))
+	router.GET("/campaigns", func(c *gin.Context) { list(c, campaign.ListSQL) })
+	router.GET("/campaigns/:id", func(c *gin.Context) { retrieve(c, campaign.RetrieveSQL) })
+	router.DELETE("/campaigns/:id", func(c *gin.Context) { deleteEntity(c, campaign.DeleteSQL) })
 
 	router.POST("/shorturls", func(c *gin.Context) { create(c, short_url.CreateSQL) })
 	router.PUT("/shorturls/:id", func(c *gin.Context) { update(c, short_url.UpdateSQL) })
-	router.GET("/shorturls", listHandler(short_url.ListSQL))
-	router.GET("/shorturls/:id", retrieveHandler(short_url.RetrieveSQL))
-	router.DELETE("/shorturls/:id", deleteHandler(short_url.DeleteSQL))
+	router.GET("/shorturls", func(c *gin.Context) { list(c, short_url.ListSQL) })
+	router.GET("/shorturls/:id", func(c *gin.Context) { retrieve(c, short_url.RetrieveSQL) })
+	router.DELETE("/shorturls/:id", func(c *gin.Context) { deleteEntity(c, short_url.DeleteSQL) })
 
 	if err := router.Run("localhost:8080"); err != nil {
 		slog.Error("Failed to start server", "error", err.Error())

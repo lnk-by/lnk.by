@@ -9,10 +9,10 @@ import (
 	"github.com/lnk.by/shared/service/short_url"
 )
 
-func listShortURL(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
+func listShortURLs(ctx context.Context, request events.APIGatewayProxyRequest) events.APIGatewayProxyResponse {
 	return common.ListEntities(ctx, request, short_url.ListSQL)
 }
 
 func main() {
-	lambda.Start(listShortURL)
+	lambda.Start(listShortURLs)
 }
