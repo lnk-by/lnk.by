@@ -21,12 +21,20 @@ import (
 )
 
 const (
-	ContentTypeHeader = "Content-Type"
-	ContentTypeJSON   = "application/json"
+	contentTypeHeader = "Content-Type"
+	contentTypeJSON   = "application/json"
 )
 
 func init() {
-	_ = godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println(".env file not found, continuing...")
+		} else {
+			fmt.Fprintf(os.Stderr, "Failed to load .env: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	if err := db.Init(context.Background(), os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
 		fmt.Printf("Failed to connect to database: %v\n", err)
 		os.Exit(1)
@@ -177,7 +185,7 @@ func deleteEntity[T service.FieldsPtrsAware](c *gin.Context, sql service.DeleteS
 }
 
 func respondWithJSON(c *gin.Context, statusCode int, jsonStr string) {
-	c.Header(ContentTypeHeader, ContentTypeJSON)
+	c.Header(contentTypeHeader, contentTypeJSON)
 	c.String(statusCode, jsonStr)
 }
 
