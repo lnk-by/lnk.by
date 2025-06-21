@@ -4,7 +4,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"math"
 	"net/http"
 	"os"
@@ -17,7 +20,7 @@ import (
 	"github.com/lnk.by/shared/service/campaign"
 	"github.com/lnk.by/shared/service/customer"
 	"github.com/lnk.by/shared/service/organization"
-	"github.com/lnk.by/shared/service/shortURL"
+	"github.com/lnk.by/shared/service/short_url"
 )
 
 const (
@@ -27,29 +30,28 @@ const (
 
 func init() {
 	if err := godotenv.Load(); err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println(".env file not found, continuing...")
-		} else {
-			fmt.Fprintf(os.Stderr, "Failed to load .env: %v\n", err)
+		if !errors.Is(err, fs.ErrNotExist) {
+			slog.Error("Failed to load .env", "error", err)
 			os.Exit(1)
 		}
+		slog.Info(".env file not found, continuing...")
 	}
 
 	if err := db.Init(context.Background(), os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
-		fmt.Printf("Failed to connect to database: %v\n", err)
+		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
 }
 
-func getEntities[T service.FieldsPtrsAware](c *gin.Context, sql service.ListSQL[T]) {
+func list[T service.FieldsPtrsAware](c *gin.Context, sql service.ListSQL[T]) {
 	offset, err := parseQueryInt(c, "offset", 0)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid offest"})
 		return
 	}
 	limit, err := parseQueryInt(c, "limit", math.MaxInt32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit"})
 		return
 	}
 	status, body := service.List(c.Request.Context(), sql, offset, limit)
@@ -70,19 +72,19 @@ func parseQueryInt(c *gin.Context, key string, defaultValue int) (int, error) {
 	return val, nil
 }
 
-func getEntitiesHandler[T service.FieldsPtrsAware](sql service.ListSQL[T]) gin.HandlerFunc {
+func listHandler[T service.FieldsPtrsAware](sql service.ListSQL[T]) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		getEntities(c, sql)
+		list(c, sql)
 	}
 }
 
-func getEntityHandler[T service.FieldsPtrsAware](sql service.RetrieveSQL[T]) gin.HandlerFunc {
+func retrieveHandler[T service.FieldsPtrsAware](sql service.RetrieveSQL[T]) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		getEntity(c, sql)
+		retrieve(c, sql)
 	}
 }
 
-func getEntity[T service.FieldsPtrsAware](c *gin.Context, sql service.RetrieveSQL[T]) {
+func retrieve[T service.FieldsPtrsAware](c *gin.Context, sql service.RetrieveSQL[T]) {
 	id := c.Param("id")
 	status, body := service.Retrieve(c.Request.Context(), sql, id)
 	respondWithJSON(c, status, body)
@@ -151,28 +153,28 @@ func updateCampaign(c *gin.Context) {
 }
 
 func createShortURL(c *gin.Context) {
-	var e shortURL.ShortURL
+	var e short_url.ShortURL
 	if err := c.BindJSON(&e); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
 	}
-	status, body := service.Create(c.Request.Context(), shortURL.CreateSQL, &e)
+	status, body := service.Create(c.Request.Context(), short_url.CreateSQL, &e)
 	respondWithJSON(c, status, body)
 }
 
 func updateShortURL(c *gin.Context) {
-	var e shortURL.ShortURL
+	var e short_url.ShortURL
 	if err := c.BindJSON(&e); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
 		return
 	}
-	status, body := service.Update(c.Request.Context(), shortURL.UpdateSQL, c.Param("id"), &e)
+	status, body := service.Update(c.Request.Context(), short_url.UpdateSQL, c.Param("id"), &e)
 	respondWithJSON(c, status, body)
 }
 
 ///////////////////////////////
 
-func deleteEntityHandler[T service.FieldsPtrsAware](sql service.DeleteSQL[T]) gin.HandlerFunc {
+func deleteHandler[T service.FieldsPtrsAware](sql service.DeleteSQL[T]) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deleteEntity(c, sql)
 	}
@@ -210,28 +212,29 @@ func main() {
 
 	router.POST("/customers", createCustomer)
 	router.PUT("/customers/:id", updateCustomer)
-	router.GET("/customers", getEntitiesHandler(customer.ListSQL))
-	router.GET("/customers/:id", getEntityHandler(customer.RetrieveSQL))
-	router.DELETE("/customers/:id", deleteEntityHandler(customer.DeleteSQL))
+	router.GET("/customers", listHandler(customer.ListSQL))
+	router.GET("/customers/:id", retrieveHandler(customer.RetrieveSQL))
+	router.DELETE("/customers/:id", deleteHandler(customer.DeleteSQL))
 
 	router.POST("/organizations", createOrganization)
 	router.PUT("/organizations/:id", updateOrganization)
-	router.GET("/organizations", getEntitiesHandler(organization.ListSQL))
-	router.GET("/organizations/:id", getEntityHandler(organization.RetrieveSQL))
-	router.DELETE("/organizations/:id", deleteEntityHandler(organization.DeleteSQL))
+	router.GET("/organizations", listHandler(organization.ListSQL))
+	router.GET("/organizations/:id", retrieveHandler(organization.RetrieveSQL))
+	router.DELETE("/organizations/:id", deleteHandler(organization.DeleteSQL))
 
 	router.POST("/campaigns", createCampaign)
 	router.PUT("/campaigns/:id", updateCampaign)
-	router.GET("/campaigns", getEntitiesHandler(campaign.ListSQL))
-	router.GET("/campaigns/:id", getEntityHandler(campaign.RetrieveSQL))
-	router.DELETE("/campaigns/:id", deleteEntityHandler(campaign.DeleteSQL))
+	router.GET("/campaigns", listHandler(campaign.ListSQL))
+	router.GET("/campaigns/:id", retrieveHandler(campaign.RetrieveSQL))
+	router.DELETE("/campaigns/:id", deleteHandler(campaign.DeleteSQL))
 
 	router.POST("/shorturls", createShortURL)
 	router.PUT("/shorturls/:id", updateShortURL)
-	router.GET("/shorturls", getEntitiesHandler(shortURL.ListSQL))
-	router.GET("/shorturls/:id", getEntityHandler(shortURL.RetrieveSQL))
-	router.DELETE("/shorturls/:id", deleteEntityHandler(shortURL.DeleteSQL))
+	router.GET("/shorturls", listHandler(short_url.ListSQL))
+	router.GET("/shorturls/:id", retrieveHandler(short_url.RetrieveSQL))
+	router.DELETE("/shorturls/:id", deleteHandler(short_url.DeleteSQL))
 
-	router.Run("localhost:8080")
-	fmt.Println("Server started")
+	if err := router.Run("localhost:8080"); err != nil {
+		slog.Error("Failed to start server", "error", err.Error())
+	}
 }
