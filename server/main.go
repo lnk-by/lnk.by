@@ -1,5 +1,3 @@
-// main.go - placeholder for cmd/server/main.go
-
 package main
 
 import (
@@ -72,117 +70,23 @@ func parseQueryInt(c *gin.Context, key string, defaultValue int) (int, error) {
 	return val, nil
 }
 
-func listHandler[T service.FieldsPtrsAware](sql service.ListSQL[T]) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		list(c, sql)
-	}
-}
-
-func retrieveHandler[T service.FieldsPtrsAware](sql service.RetrieveSQL[T]) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		retrieve(c, sql)
-	}
-}
-
 func retrieve[T service.FieldsPtrsAware](c *gin.Context, sql service.RetrieveSQL[T]) {
-	id := c.Param("id")
-	status, body := service.Retrieve(c.Request.Context(), sql, id)
+	status, body := service.Retrieve(c.Request.Context(), sql, c.Param("id"))
 	respondWithJSON(c, status, body)
 }
 
-func createCustomer(c *gin.Context) {
-	var u customer.Customer
-	if err := c.BindJSON(&u); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	status, body := service.Create(c.Request.Context(), customer.CreateSQL, &u)
+func create[T service.FieldsValsAware](c *gin.Context, sql service.CreateSQL[T]) {
+	status, body := service.CreateFromReqBody(c.Request.Context(), sql, c.Request.Body)
 	respondWithJSON(c, status, body)
 }
 
-func updateCustomer(c *gin.Context) {
-	var u customer.Customer
-	if err := c.BindJSON(&u); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	status, body := service.Update(c.Request.Context(), customer.UpdateSQL, c.Param("id"), &u)
+func update[T service.FieldsValsAware](c *gin.Context, sql service.UpdateSQL[T]) {
+	status, body := service.UpdateFromReqBody(c.Request.Context(), sql, c.Param("id"), c.Request.Body)
 	respondWithJSON(c, status, body)
-}
-
-////////////////////////////////
-
-func createOrganization(c *gin.Context) {
-	var o organization.Organization
-	if err := c.BindJSON(&o); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	status, body := service.Create(c.Request.Context(), organization.CreateSQL, &o)
-	respondWithJSON(c, status, body)
-}
-
-func updateOrganization(c *gin.Context) {
-	var o organization.Organization
-	if err := c.BindJSON(&o); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	status, body := service.Update(c.Request.Context(), organization.UpdateSQL, c.Param("id"), &o)
-	respondWithJSON(c, status, body)
-}
-
-func createCampaign(c *gin.Context) {
-	var e campaign.Campaign
-	if err := c.BindJSON(&e); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	status, body := service.Create(c.Request.Context(), campaign.CreateSQL, &e)
-	respondWithJSON(c, status, body)
-}
-
-func updateCampaign(c *gin.Context) {
-	var e campaign.Campaign
-	if err := c.BindJSON(&e); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	status, body := service.Update(c.Request.Context(), campaign.UpdateSQL, c.Param("id"), &e)
-	respondWithJSON(c, status, body)
-}
-
-func createShortURL(c *gin.Context) {
-	var e short_url.ShortURL
-	if err := c.BindJSON(&e); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	status, body := service.Create(c.Request.Context(), short_url.CreateSQL, &e)
-	respondWithJSON(c, status, body)
-}
-
-func updateShortURL(c *gin.Context) {
-	var e short_url.ShortURL
-	if err := c.BindJSON(&e); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON"})
-		return
-	}
-	status, body := service.Update(c.Request.Context(), short_url.UpdateSQL, c.Param("id"), &e)
-	respondWithJSON(c, status, body)
-}
-
-///////////////////////////////
-
-func deleteHandler[T service.FieldsPtrsAware](sql service.DeleteSQL[T]) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		deleteEntity(c, sql)
-	}
 }
 
 func deleteEntity[T service.FieldsPtrsAware](c *gin.Context, sql service.DeleteSQL[T]) {
-	id := c.Param("id")
-	status, body := service.Delete(c.Request.Context(), sql, id)
+	status, body := service.Delete(c.Request.Context(), sql, c.Param("id"))
 	respondWithJSON(c, status, body)
 }
 
@@ -210,29 +114,29 @@ func main() {
 	router.Use(gin.Recovery(), jsonErrorHandler)
 	router.RemoveExtraSlash = true
 
-	router.POST("/customers", createCustomer)
-	router.PUT("/customers/:id", updateCustomer)
-	router.GET("/customers", listHandler(customer.ListSQL))
-	router.GET("/customers/:id", retrieveHandler(customer.RetrieveSQL))
-	router.DELETE("/customers/:id", deleteHandler(customer.DeleteSQL))
+	router.POST("/customers", func(c *gin.Context) { create(c, customer.CreateSQL) })
+	router.PUT("/customers/:id", func(c *gin.Context) { update(c, customer.UpdateSQL) })
+	router.GET("/customers", func(c *gin.Context) { list(c, customer.ListSQL) })
+	router.GET("/customers/:id", func(c *gin.Context) { retrieve(c, customer.RetrieveSQL) })
+	router.DELETE("/customers/:id", func(c *gin.Context) { deleteEntity(c, customer.DeleteSQL) })
 
-	router.POST("/organizations", createOrganization)
-	router.PUT("/organizations/:id", updateOrganization)
-	router.GET("/organizations", listHandler(organization.ListSQL))
-	router.GET("/organizations/:id", retrieveHandler(organization.RetrieveSQL))
-	router.DELETE("/organizations/:id", deleteHandler(organization.DeleteSQL))
+	router.POST("/organizations", func(c *gin.Context) { create(c, organization.CreateSQL) })
+	router.PUT("/organizations/:id", func(c *gin.Context) { update(c, organization.UpdateSQL) })
+	router.GET("/organizations", func(c *gin.Context) { list(c, organization.ListSQL) })
+	router.GET("/organizations/:id", func(c *gin.Context) { retrieve(c, organization.RetrieveSQL) })
+	router.DELETE("/organizations/:id", func(c *gin.Context) { deleteEntity(c, organization.DeleteSQL) })
 
-	router.POST("/campaigns", createCampaign)
-	router.PUT("/campaigns/:id", updateCampaign)
-	router.GET("/campaigns", listHandler(campaign.ListSQL))
-	router.GET("/campaigns/:id", retrieveHandler(campaign.RetrieveSQL))
-	router.DELETE("/campaigns/:id", deleteHandler(campaign.DeleteSQL))
+	router.POST("/campaigns", func(c *gin.Context) { create(c, campaign.CreateSQL) })
+	router.PUT("/campaigns/:id", func(c *gin.Context) { update(c, campaign.UpdateSQL) })
+	router.GET("/campaigns", func(c *gin.Context) { list(c, campaign.ListSQL) })
+	router.GET("/campaigns/:id", func(c *gin.Context) { retrieve(c, campaign.RetrieveSQL) })
+	router.DELETE("/campaigns/:id", func(c *gin.Context) { deleteEntity(c, campaign.DeleteSQL) })
 
-	router.POST("/shorturls", createShortURL)
-	router.PUT("/shorturls/:id", updateShortURL)
-	router.GET("/shorturls", listHandler(short_url.ListSQL))
-	router.GET("/shorturls/:id", retrieveHandler(short_url.RetrieveSQL))
-	router.DELETE("/shorturls/:id", deleteHandler(short_url.DeleteSQL))
+	router.POST("/shorturls", func(c *gin.Context) { create(c, short_url.CreateSQL) })
+	router.PUT("/shorturls/:id", func(c *gin.Context) { update(c, short_url.UpdateSQL) })
+	router.GET("/shorturls", func(c *gin.Context) { list(c, short_url.ListSQL) })
+	router.GET("/shorturls/:id", func(c *gin.Context) { retrieve(c, short_url.RetrieveSQL) })
+	router.DELETE("/shorturls/:id", func(c *gin.Context) { deleteEntity(c, short_url.DeleteSQL) })
 
 	if err := router.Run("localhost:8080"); err != nil {
 		slog.Error("Failed to start server", "error", err.Error())

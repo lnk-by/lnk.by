@@ -2,17 +2,17 @@ package main
 
 import (
 	"context"
-
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/lnk.by/aws/common"
 	"github.com/lnk.by/shared/service"
-	"github.com/lnk.by/shared/service/customer"
+	"github.com/lnk.by/shared/service/campaign"
 )
 
-func createCustomer(ctx context.Context, requestedCustomer customer.Customer) (int, string) {
-	return service.Create(ctx, customer.CreateSQL, &requestedCustomer)
+func createCampaign(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	status, body := service.Create(ctx, campaign.CreateSQL, []byte(request.Body))
+	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}, nil
 }
 
 func main() {
-	lambda.Start(common.CreateAdapter(createCustomer))
+	lambda.Start(createCampaign)
 }
