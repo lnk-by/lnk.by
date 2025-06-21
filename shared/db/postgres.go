@@ -3,8 +3,9 @@ package db
 import (
 	"context"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var pool *pgxpool.Pool
@@ -28,9 +29,9 @@ func Init(ctx context.Context, dbUrl string, user string, password string) error
 		return fmt.Errorf("failed to build DB pool: %w", err)
 	}
 
-	//if err := pool.Ping(ctx); err != nil {
-	//	return fmt.Errorf("failed to ping DB pool: %w", err)
-	//}
+	if err := pool.Ping(ctx); err != nil {
+		return fmt.Errorf("failed to ping DB pool: %w", err)
+	}
 
 	return nil
 }
