@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS short_url (
 	target VARCHAR(2048) NOT NULL,
 	campaign_id VARCHAR(36) REFERENCES campaign(id),
 	customer_id VARCHAR(36) REFERENCES customer(id),
+	is_custom BOOLEAN DEFAULT FALSE,
 	status valid_statuses
 );
 
@@ -36,3 +37,4 @@ CREATE INDEX idx_shorturl_customer ON short_url(customer_id);
 CREATE INDEX idx_campaign_org ON campaign(organization_id);
 CREATE INDEX idx_shorturl_campaign ON short_url(campaign_id);
 
+ALTER TABLE short_url ADD COLUMN "is_custom" BOOLEAN DEFAULT FALSE;
