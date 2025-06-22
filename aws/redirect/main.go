@@ -11,19 +11,17 @@ import (
 )
 
 func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	status, errStr, url := service.RetrieveValueAndMarshalError(ctx, short_url.RetrieveSQL, short_url.IdParam)
-
-	switch {
-	case status == http.StatusOK:
-		return events.APIGatewayV2HTTPResponse{
-			StatusCode: http.StatusMovedPermanently, // TODO: in future we can return 302 if the URL TTL is short or 307 or  308 if we will support methods other then GET
-			Headers: map[string]string{
-				"Location": url.Target,
-			},
-		}, nil
-	default:
+	status, url, errStr := service.RetrieveValueAndMarshalError(ctx, short_url.RetrieveSQL, short_url.IdParam)
+	if errStr != "" {
 		return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: errStr}, nil
 	}
+
+	return events.APIGatewayV2HTTPResponse{
+		StatusCode: http.StatusMovedPermanently, // TODO: in future we can return 302 if the URL TTL is short or 307 or  308 if we will support methods other then GET
+		Headers: map[string]string{
+			"Location": url.Target,
+		},
+	}, nil
 }
 
 func main() {

@@ -110,14 +110,14 @@ func jsonErrorHandler(c *gin.Context) {
 }
 
 func redirect(c *gin.Context) {
-	status, err_str, url := service.RetrieveValueAndMarshalError(c.Request.Context(), short_url.RetrieveSQL, c.Param("id"))
-
-	switch {
-	case status == http.StatusOK:
-		c.Redirect(http.StatusFound, url.Target)
-	default:
-		c.JSON(status, gin.H{"error": err_str})
+	status, url, errStr := service.RetrieveValueAndMarshalError(c.Request.Context(), short_url.RetrieveSQL, c.Param("id"))
+	if errStr != "" {
+		//c.JSON(status, gin.H{"error": errStr})
+		respondWithJSON(c, status, errStr)
+		return
 	}
+
+	c.Redirect(http.StatusFound, url.Target)
 }
 
 func main() {
