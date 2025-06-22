@@ -47,9 +47,18 @@ func succeeded(status int, t any) (int, string) {
 }
 
 func withConn(ctx context.Context, f func(conn *pgxpool.Conn) (int, string)) (int, string) {
+	status, _, body := withTypedConn(ctx, func(conn *pgxpool.Conn) (int, error, string) {
+		status, str := f(conn)
+		return status, nil, str
+	})
+	return status, body
+}
+
+func withTypedConn[T any](ctx context.Context, f func(conn *pgxpool.Conn) (int, error, T)) (int, error, T) {
 	conn, err := db.Get(ctx)
 	if err != nil {
-		return failed(http.StatusInternalServerError, fmt.Errorf("failed to get DB connection: %w", err))
+		var zero T
+		return http.StatusInternalServerError, fmt.Errorf("failed to get DB connection: %w", err), zero
 	}
 	defer conn.Release()
 
@@ -134,21 +143,50 @@ func inst[T any]() T {
 }
 
 func Retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
-	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
+	return marshal(RetrieveValue(ctx, RetrieveSQL[T](retrieveSQL), id))
+}
+
+func marshal[T any](status int, err error, entity T) (int, string) {
+	switch {
+	case status < http.StatusMovedPermanently:
+		return succeeded(status, entity)
+	default:
+		return failed(status, err)
+	}
+}
+
+func RetrieveValueAndMarshalError[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string, T) {
+	status, err, value := RetrieveValue(ctx, RetrieveSQL[T](retrieveSQL), id)
+	switch {
+	case status < http.StatusMovedPermanently:
+		return status, "", value
+	default:
+		_, str_err := failed(status, err)
+		return status, str_err, value
+	}
+}
+
+func RetrieveValue[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, error, T) {
+	return withTypedConn(ctx, func(conn *pgxpool.Conn) (int, error, T) {
 		t := inst[T]()
 		if err := conn.QueryRow(ctx, string(retrieveSQL), id).Scan(t.FieldsPtrs()...); err != nil {
 			switch {
 			case errors.Is(err, pgx.ErrNoRows):
-				return failed(http.StatusNotFound, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
+				return failedWithType[T](http.StatusNotFound, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
 			case errors.Is(err, pgx.ErrTooManyRows):
-				return failed(http.StatusConflict, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
+				return failedWithType[T](http.StatusConflict, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
 			default:
-				return failed(http.StatusInternalServerError, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
+				return failedWithType[T](http.StatusInternalServerError, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
 			}
 		}
 
-		return succeeded(http.StatusOK, t)
+		return http.StatusOK, nil, t
 	})
+}
+
+func failedWithType[T any](status int, err error) (int, error, T) {
+	var zero T
+	return status, err, zero
 }
 
 type Updatable interface {
