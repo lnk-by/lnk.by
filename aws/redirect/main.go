@@ -11,7 +11,7 @@ import (
 )
 
 func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	status, err_str, url := service.RetrieveValueAndMarshalError(ctx, short_url.RetrieveSQL, short_url.IdParam)
+	status, errStr, url := service.RetrieveValueAndMarshalError(ctx, short_url.RetrieveSQL, short_url.IdParam)
 
 	switch {
 	case status == http.StatusOK:
@@ -22,7 +22,7 @@ func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.AP
 			},
 		}, nil
 	default:
-		return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: err_str}, nil
+		return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: errStr}, nil
 	}
 }
 

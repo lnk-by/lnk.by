@@ -12,7 +12,7 @@ import (
 	"github.com/lnk.by/shared/service"
 )
 
-func Create[T service.FieldsValsAware](ctx context.Context, request events.APIGatewayProxyRequest, sql service.CreateSQL[T]) events.APIGatewayProxyResponse {
+func Create[T service.Creatable](ctx context.Context, request events.APIGatewayProxyRequest, sql service.CreateSQL[T]) events.APIGatewayProxyResponse {
 	status, body := service.Create(ctx, sql, []byte(request.Body))
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
@@ -22,7 +22,7 @@ func Retrieve[T service.FieldsPtrsAware](ctx context.Context, request events.API
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
 
-func Update[T service.FieldsValsAware](ctx context.Context, request events.APIGatewayProxyRequest, sql service.UpdateSQL[T], idParam string) events.APIGatewayProxyResponse {
+func Update[T service.Updatable](ctx context.Context, request events.APIGatewayProxyRequest, sql service.UpdateSQL[T], idParam string) events.APIGatewayProxyResponse {
 	status, body := service.Update(ctx, sql, request.PathParameters[idParam], []byte(request.Body))
 	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
 }
