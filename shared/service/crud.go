@@ -11,6 +11,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gofrs/uuid"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lnk.by/shared/db"
@@ -54,29 +56,36 @@ func withConn(ctx context.Context, f func(conn *pgxpool.Conn) (int, string)) (in
 	return f(conn)
 }
 
-type validatable interface {
-	Validate() error
-}
-
-type idAware interface {
-	WithId(id string)
-}
-
 type FieldsValsAware interface {
-	validatable
-	idAware
+	Validate() error
 	FieldsVals() []any
 }
 
-func decode[T any](content []byte) (t T, err error) {
+func decode[T FieldsValsAware](content []byte) (t T, status int, err error) {
 	t = inst[T]()
 	if err = json.Unmarshal(content, t); err != nil {
+		status = http.StatusInternalServerError
 		err = fmt.Errorf("failed to unmarshal %T from JSON: %w", t, err)
 	}
+
+	if err = t.Validate(); err != nil {
+		status = http.StatusBadRequest
+		err = fmt.Errorf("failed to validate %T %v: %w", t, t, err)
+	}
+
 	return
 }
 
-func CreateFromReqBody[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], body io.ReadCloser) (int, string) {
+type Creatable interface {
+	FieldsValsAware
+	Generate()
+}
+
+type retriable interface {
+	MaxAttempts() int
+}
+
+func CreateFromReqBody[T Creatable](ctx context.Context, createSQL CreateSQL[T], body io.ReadCloser) (int, string) {
 	content, err := io.ReadAll(body)
 	if err != nil {
 		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
@@ -84,23 +93,20 @@ func CreateFromReqBody[T FieldsValsAware](ctx context.Context, createSQL CreateS
 	return Create(ctx, createSQL, content)
 }
 
-func Create[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], content []byte) (int, string) {
-	status, body := CreateWithRetries(ctx, createSQL, content, 1)
-	return status, body
-}
-
-func CreateWithRetries[T FieldsValsAware](ctx context.Context, createSQL CreateSQL[T], content []byte, maxAttempts int) (int, string) {
-	t, err := decode[T](content)
+func Create[T Creatable](ctx context.Context, createSQL CreateSQL[T], content []byte) (int, string) {
+	t, status, err := decode[T](content)
 	if err != nil {
-		return failed(http.StatusInternalServerError, fmt.Errorf("failed to create %T: %w", t, err))
+		return failed(status, fmt.Errorf("failed to create %T: %w", t, err))
+	}
+
+	maxAttempts := 1
+	if t, ok := any(t).(retriable); ok {
+		maxAttempts = t.MaxAttempts()
 	}
 
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
 		for i := 0; i < maxAttempts; i++ {
-			if err := t.Validate(); err != nil {
-				return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err))
-			}
-
+			t.Generate()
 			if _, err := conn.Exec(ctx, string(createSQL), t.FieldsVals()...); err != nil {
 				if isDuplicateKeyError(err) {
 					continue // try again
@@ -145,7 +151,12 @@ func Retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 	})
 }
 
-func UpdateFromReqBody[T FieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], id string, body io.ReadCloser) (int, string) {
+type Updatable interface {
+	FieldsValsAware
+	WithId(id string)
+}
+
+func UpdateFromReqBody[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, body io.ReadCloser) (int, string) {
 	content, err := io.ReadAll(body)
 	if err != nil {
 		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
@@ -153,16 +164,13 @@ func UpdateFromReqBody[T FieldsValsAware](ctx context.Context, updateSQL UpdateS
 	return Update(ctx, updateSQL, id, content)
 }
 
-func Update[T FieldsValsAware](ctx context.Context, updateSQL UpdateSQL[T], id string, content []byte) (int, string) {
-	t, err := decode[T](content)
+func Update[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, content []byte) (int, string) {
+	t, status, err := decode[T](content)
 	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("failed to update %T: %w", t, err).Error()
+		return failed(status, fmt.Errorf("failed to update %T: %w", t, err))
 	}
 
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
-		if err := t.Validate(); err != nil {
-			return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %v: %w", t, err))
-		}
 		t.WithId(id)
 		commandTag, err := conn.Exec(ctx, string(updateSQL), t.FieldsVals()...)
 		switch {
@@ -233,3 +241,12 @@ func List[T FieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 		return http.StatusOK, buf.String()
 	})
 }
+
+func UUID() string {
+	return uuid.Must(uuid.NewV1()).String()
+}
+
+var (
+	ErrNameRequired      = errors.New("name is required")
+	ErrIDManagedByServer = errors.New("ID is managed by the server")
+)

@@ -75,12 +75,12 @@ func retrieve[T service.FieldsPtrsAware](c *gin.Context, sql service.RetrieveSQL
 	respondWithJSON(c, status, body)
 }
 
-func create[T service.FieldsValsAware](c *gin.Context, sql service.CreateSQL[T]) {
+func create[T service.Creatable](c *gin.Context, sql service.CreateSQL[T]) {
 	status, body := service.CreateFromReqBody(c.Request.Context(), sql, c.Request.Body)
 	respondWithJSON(c, status, body)
 }
 
-func update[T service.FieldsValsAware](c *gin.Context, sql service.UpdateSQL[T]) {
+func update[T service.Updatable](c *gin.Context, sql service.UpdateSQL[T]) {
 	status, body := service.UpdateFromReqBody(c.Request.Context(), sql, c.Param("id"), c.Request.Body)
 	respondWithJSON(c, status, body)
 }

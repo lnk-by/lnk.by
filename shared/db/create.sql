@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS campaign (
 
 CREATE TABLE IF NOT EXISTS short_url (
 	key VARCHAR(32) PRIMARY KEY,
+	is_custom BOOLEAN DEFAULT FALSE,
 	target VARCHAR(2048) NOT NULL,
 	campaign_id VARCHAR(36) REFERENCES campaign(id),
 	customer_id VARCHAR(36) REFERENCES customer(id),

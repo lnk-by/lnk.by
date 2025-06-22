@@ -36,3 +36,6 @@ curl -X POST -H 'Content-Type: application/json' -d '{"name":"Tiul", "organizati
 
 
 curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.google.com", "campaign_id": "735aef8a-4d24-11f0-9888-002b67d6b1c3", "customer_id": "02695f62-4d25-11f0-9888-002b67d6b1c3"}' http://localhost:8080/shorturls
+
+# custom short URL
+curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.google.com", "key": "cnn", "custom": true, "campaign_id": "735aef8a-4d24-11f0-9888-002b67d6b1c3", "customer_id": "02695f62-4d25-11f0-9888-002b67d6b1c3"}' http://localhost:8080/shorturls
