@@ -47,18 +47,18 @@ func succeeded(status int, t any) (int, string) {
 }
 
 func withConn(ctx context.Context, f func(conn *pgxpool.Conn) (int, string)) (int, string) {
-	status, _, body := withTypedConn(ctx, func(conn *pgxpool.Conn) (int, error, string) {
+	status, body, _ := withTypedConn(ctx, func(conn *pgxpool.Conn) (int, string, error) {
 		status, str := f(conn)
-		return status, nil, str
+		return status, str, nil
 	})
 	return status, body
 }
 
-func withTypedConn[T any](ctx context.Context, f func(conn *pgxpool.Conn) (int, error, T)) (int, error, T) {
+func withTypedConn[T any](ctx context.Context, f func(conn *pgxpool.Conn) (int, T, error)) (int, T, error) {
 	conn, err := db.Get(ctx)
 	if err != nil {
 		var zero T
-		return http.StatusInternalServerError, fmt.Errorf("failed to get DB connection: %w", err), zero
+		return http.StatusInternalServerError, zero, fmt.Errorf("failed to get DB connection: %w", err)
 	}
 	defer conn.Release()
 
@@ -143,10 +143,10 @@ func inst[T any]() T {
 }
 
 func Retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
-	return marshal(RetrieveValue(ctx, RetrieveSQL[T](retrieveSQL), id))
+	return marshal(RetrieveValue(ctx, retrieveSQL, id))
 }
 
-func marshal[T any](status int, err error, entity T) (int, string) {
+func marshal[T any](status int, entity T, err error) (int, string) {
 	switch {
 	case status < http.StatusMovedPermanently:
 		return succeeded(status, entity)
@@ -155,19 +155,19 @@ func marshal[T any](status int, err error, entity T) (int, string) {
 	}
 }
 
-func RetrieveValueAndMarshalError[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string, T) {
-	status, err, value := RetrieveValue(ctx, RetrieveSQL[T](retrieveSQL), id)
+func RetrieveValueAndMarshalError[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, T, string) {
+	status, value, err := RetrieveValue(ctx, retrieveSQL, id)
 	switch {
 	case status < http.StatusMovedPermanently:
-		return status, "", value
+		return status, value, ""
 	default:
-		_, str_err := failed(status, err)
-		return status, str_err, value
+		_, strErr := failed(status, err)
+		return status, value, strErr
 	}
 }
 
-func RetrieveValue[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, error, T) {
-	return withTypedConn(ctx, func(conn *pgxpool.Conn) (int, error, T) {
+func RetrieveValue[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, T, error) {
+	return withTypedConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
 		t := inst[T]()
 		if err := conn.QueryRow(ctx, string(retrieveSQL), id).Scan(t.FieldsPtrs()...); err != nil {
 			switch {
@@ -180,13 +180,13 @@ func RetrieveValue[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveS
 			}
 		}
 
-		return http.StatusOK, nil, t
+		return http.StatusOK, t, nil
 	})
 }
 
-func failedWithType[T any](status int, err error) (int, error, T) {
+func failedWithType[T any](status int, err error) (int, T, error) {
 	var zero T
-	return status, err, zero
+	return status, zero, err
 }
 
 type Updatable interface {
