@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/lnk.by/shared/service"
+	"github.com/lnk.by/aws/adapter"
 	"github.com/lnk.by/shared/service/short_url"
 )
 
@@ -19,8 +19,7 @@ attempts := 10
 */
 
 func createShortURL(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	status, body := service.Create(ctx, short_url.CreateSQL, []byte(request.Body))
-	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}, nil
+	return adapter.Create(ctx, request, short_url.CreateSQL), nil
 }
 
 func main() {
