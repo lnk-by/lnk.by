@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gofrs/uuid"
 	"io"
 	"net/http"
 	"reflect"
 	"strings"
+
+	"github.com/gofrs/uuid"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -75,7 +76,7 @@ func decode[T FieldsValsAware](content []byte) (t T, status int, err error) {
 	return
 }
 
-type creatable interface {
+type Creatable interface {
 	FieldsValsAware
 	Generate()
 }
@@ -84,7 +85,7 @@ type retriable interface {
 	MaxAttempts() int
 }
 
-func CreateFromReqBody[T creatable](ctx context.Context, createSQL CreateSQL[T], body io.ReadCloser) (int, string) {
+func CreateFromReqBody[T Creatable](ctx context.Context, createSQL CreateSQL[T], body io.ReadCloser) (int, string) {
 	content, err := io.ReadAll(body)
 	if err != nil {
 		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
@@ -92,7 +93,7 @@ func CreateFromReqBody[T creatable](ctx context.Context, createSQL CreateSQL[T],
 	return Create(ctx, createSQL, content)
 }
 
-func Create[T creatable](ctx context.Context, createSQL CreateSQL[T], content []byte) (int, string) {
+func Create[T Creatable](ctx context.Context, createSQL CreateSQL[T], content []byte) (int, string) {
 	t, status, err := decode[T](content)
 	if err != nil {
 		return failed(status, fmt.Errorf("failed to create %T: %w", t, err))
@@ -150,12 +151,12 @@ func Retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 	})
 }
 
-type updatable interface {
+type Updatable interface {
 	FieldsValsAware
 	WithId(id string)
 }
 
-func UpdateFromReqBody[T updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, body io.ReadCloser) (int, string) {
+func UpdateFromReqBody[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, body io.ReadCloser) (int, string) {
 	content, err := io.ReadAll(body)
 	if err != nil {
 		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
@@ -163,7 +164,7 @@ func UpdateFromReqBody[T updatable](ctx context.Context, updateSQL UpdateSQL[T],
 	return Update(ctx, updateSQL, id, content)
 }
 
-func Update[T updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, content []byte) (int, string) {
+func Update[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, content []byte) (int, string) {
 	t, status, err := decode[T](content)
 	if err != nil {
 		return failed(status, fmt.Errorf("failed to update %T: %w", t, err))
