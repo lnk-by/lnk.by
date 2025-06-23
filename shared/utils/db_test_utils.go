@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,12 +20,16 @@ var postgres *embeddedpostgres.EmbeddedPostgres
 var tempDir string
 var conn *pgx.Conn
 
+func panicErr(message string, err error) {
+	panic(fmt.Errorf("%s: %w", message, err))
+}
+
 func StartDb(ctx context.Context, dbUrl string, username string, password string, dbDir string) {
 	// Create temp directory
 	var err error
 	tempDir, err = os.MkdirTemp("", "pgdata-*")
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create temp dir: %v", err))
+		panicErr("failed to create temp dir", err)
 	}
 
 	// Start embedded Postgres
@@ -37,30 +42,34 @@ func StartDb(ctx context.Context, dbUrl string, username string, password string
 	)
 
 	if err := postgres.Start(); err != nil {
-		panic(fmt.Sprintf("Failed to start embedded Postgres: %v", err))
+		panicErr("failed to start embedded Postgres", err)
 	}
 
 	// Connect using pgx
 	conn, err = pgx.Connect(ctx, dbUrl)
 	if err != nil {
-		postgres.Stop()
-		panic(fmt.Sprintf("Failed to connect to DB: %v", err))
+		if stopErr := postgres.Stop(); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		}
+		panicErr("failed to connect to DB", err)
 	}
 
 	// Run create.sql
 	if err := runSQLFile(ctx, conn, dbDir+"/create.sql"); err != nil {
-		postgres.Stop()
-		panic(fmt.Sprintf("Failed to run create.sql: %v", err))
+		if stopErr := postgres.Stop(); stopErr != nil {
+			err = errors.Join(err, stopErr)
+		}
+		panicErr("failed to run create.sql", err)
 	}
 
 	if err := db.Init(ctx, dbUrl, "test", "test"); err != nil {
-		os.Exit(1)
+		panicErr("failed to initialize DB", err)
 	}
 }
 
 func StopDb(ctx context.Context, dbDir string) {
 	// Run drop.sql for cleanup
-	if err := runSQLFile(ctx, conn, dbDir+"/db/drop.sql"); err != nil {
+	if err := runSQLFile(ctx, conn, dbDir+"/drop.sql"); err != nil {
 		fmt.Printf("Warning: Failed to run drop.sql: %v\n", err)
 	}
 
@@ -78,42 +87,44 @@ func runSQLFile(ctx context.Context, conn *pgx.Conn, path string) error {
 	return err
 }
 
-func ClearDatabase(ctx context.Context, table string) error {
+func truncateTable(ctx context.Context, table string) error {
 	_, err := conn.Exec(ctx, fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table))
 	return err
 }
 
-func CleanupTestDatabase(t *testing.T, table string) {
-	ClearDatabase(t.Context(), table)
+func TruncateTable(t *testing.T, table string) {
+	err := truncateTable(t.Context(), table)
+	assert.NoError(t, err)
+
 	t.Cleanup(func() {
 		// the t.Context() is already cancelled at this point
-		if err := ClearDatabase(context.Background(), table); err != nil {
-			t.Errorf("failed to clear DB after test: %v", err)
-		}
+		err := truncateTable(context.Background(), table)
+		assert.NoError(t, err)
 	})
 }
 
 func Create[T service.Creatable](t *testing.T, createSQL service.CreateSQL[T], entity T) T {
 	bytes, err := json.Marshal(entity)
-	if err != nil {
-		assert.Fail(t, err.Error())
-	}
+	assert.NoError(t, err)
+
 	status, body := service.Create(t.Context(), createSQL, bytes)
 	assert.Equal(t, http.StatusCreated, status)
+
 	var created T
-	if err := json.Unmarshal([]byte(body), &created); err != nil {
-		assert.Fail(t, err.Error())
-	}
+	err = json.Unmarshal([]byte(body), &created)
+	assert.NoError(t, err)
+
 	return created
 }
 
 func Retrieve[T service.FieldsPtrsAware](t *testing.T, retrieveSQL service.RetrieveSQL[T], id string) T {
 	status, body := service.Retrieve(t.Context(), retrieveSQL, id)
 	assert.Equal(t, http.StatusOK, status)
+
 	var retrieved T
-	if err := json.Unmarshal([]byte(body), &retrieved); err != nil {
-		assert.Fail(t, err.Error())
-	}
+	err := json.Unmarshal([]byte(body), &retrieved)
+	assert.NoError(t, err)
+
 	return retrieved
 }
 
@@ -122,8 +133,8 @@ func List[T service.FieldsPtrsAware](t *testing.T, listSQL service.ListSQL[T], o
 	assert.Equal(t, http.StatusOK, status)
 
 	var listed []T
-	if err := json.Unmarshal([]byte(body), &listed); err != nil {
-		assert.Fail(t, err.Error())
-	}
+	err := json.Unmarshal([]byte(body), &listed)
+	assert.NoError(t, err)
+
 	return listed
 }
