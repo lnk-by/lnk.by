@@ -112,7 +112,6 @@ func jsonErrorHandler(c *gin.Context) {
 func redirect(c *gin.Context) {
 	status, url, errStr := service.RetrieveValueAndMarshalError(c.Request.Context(), short_url.RetrieveSQL, c.Param("id"))
 	if errStr != "" {
-		//c.JSON(status, gin.H{"error": errStr})
 		respondWithJSON(c, status, errStr)
 		return
 	}

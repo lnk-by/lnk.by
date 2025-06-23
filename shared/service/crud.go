@@ -133,13 +133,9 @@ func marshal[T any](status int, t T, err error) (int, string) {
 		return failed(status, err)
 	}
 
-	var jsonBytes []byte
-	if t != nil {
-		var err error
-		jsonBytes, err = json.Marshal(t)
-		if err != nil {
-			return failed(http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err))
-		}
+	jsonBytes, marshallingErr := json.Marshal(t)
+	if marshallingErr != nil {
+		return failed(http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err))
 	}
 
 	return status, string(jsonBytes)
