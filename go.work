@@ -2,8 +2,8 @@ go 1.24.0
 
 use (
 	./aws
-	./gcp
 	./azure
+	./gcp
 	./server
 	./shared
 )
