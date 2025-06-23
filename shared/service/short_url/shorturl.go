@@ -7,7 +7,6 @@ import (
 
 	"github.com/lnk.by/shared/service"
 	"github.com/lnk.by/shared/utils"
-	"github.com/lnk.by/shared/utils/safemap"
 )
 
 type ShortURL struct {
@@ -28,7 +27,6 @@ func (u *ShortURL) FieldsVals() []any {
 }
 
 var generator *service.Generator
-var Custom = safemap.New[string, bool]()
 
 func init() {
 	var err error
