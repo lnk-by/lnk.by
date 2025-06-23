@@ -13,19 +13,20 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	utils.StartDb("postgres://test:test@localhost:9876/postgres?sslmode=disable", "test", "test", "../../db")
+	os.Exit(
+		func() int {
+			ctx := context.Background()
+			utils.StartDb(ctx, "postgres://test:test@localhost:9876/postgres?sslmode=disable", "test", "test", "../../db")
+			defer utils.StopDb(ctx, "../../db")
 
-	// Run tests
-	code := m.Run()
-
-	utils.StopDb("../../db")
-
-	os.Exit(code)
+			return m.Run() // Run tests
+		}(),
+	)
 }
 
 func TestListEmpty(t *testing.T) {
 	utils.CleanupTestDatabase(t, "customer")
-	status, body := service.List(context.Background(), ListSQL, 0, 10)
+	status, body := service.List(t.Context(), ListSQL, 0, 10)
 	assert.Equal(t, 200, status)
 	assert.Equal(t, "[]", body)
 

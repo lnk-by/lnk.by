@@ -19,7 +19,7 @@ var postgres *embeddedpostgres.EmbeddedPostgres
 var tempDir string
 var conn *pgx.Conn
 
-func StartDb(dbUrl string, username string, password string, dbDir string) {
+func StartDb(ctx context.Context, dbUrl string, username string, password string, dbDir string) {
 	// Create temp directory
 	var err error
 	tempDir, err = os.MkdirTemp("", "pgdata-*")
@@ -41,53 +41,53 @@ func StartDb(dbUrl string, username string, password string, dbDir string) {
 	}
 
 	// Connect using pgx
-	conn, err = pgx.Connect(context.Background(), dbUrl)
+	conn, err = pgx.Connect(ctx, dbUrl)
 	if err != nil {
 		postgres.Stop()
 		panic(fmt.Sprintf("Failed to connect to DB: %v", err))
 	}
 
 	// Run create.sql
-	if err := runSQLFile(conn, dbDir+"/create.sql"); err != nil {
+	if err := runSQLFile(ctx, conn, dbDir+"/create.sql"); err != nil {
 		postgres.Stop()
 		panic(fmt.Sprintf("Failed to run create.sql: %v", err))
 	}
 
-	if err := db.Init(context.Background(), dbUrl, "test", "test"); err != nil {
+	if err := db.Init(ctx, dbUrl, "test", "test"); err != nil {
 		os.Exit(1)
 	}
 }
 
-func StopDb(dbDir string) {
+func StopDb(ctx context.Context, dbDir string) {
 	// Run drop.sql for cleanup
-	if err := runSQLFile(conn, dbDir+"/db/drop.sql"); err != nil {
+	if err := runSQLFile(ctx, conn, dbDir+"/db/drop.sql"); err != nil {
 		fmt.Printf("Warning: Failed to run drop.sql: %v\n", err)
 	}
 
-	_ = conn.Close(context.Background())
+	_ = conn.Close(ctx)
 	_ = postgres.Stop()
 	_ = os.RemoveAll(tempDir)
-
 }
 
-func runSQLFile(conn *pgx.Conn, path string) error {
+func runSQLFile(ctx context.Context, conn *pgx.Conn, path string) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	_, err = conn.Exec(context.Background(), string(content))
+	_, err = conn.Exec(ctx, string(content))
 	return err
 }
 
-func ClearDatabase(table string) error {
-	_, err := conn.Exec(context.Background(), fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table))
+func ClearDatabase(ctx context.Context, table string) error {
+	_, err := conn.Exec(ctx, fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table))
 	return err
 }
 
 func CleanupTestDatabase(t *testing.T, table string) {
-	ClearDatabase(table)
+	ClearDatabase(t.Context(), table)
 	t.Cleanup(func() {
-		if err := ClearDatabase(table); err != nil {
+		// the t.Context() is already cancelled at this point
+		if err := ClearDatabase(context.Background(), table); err != nil {
 			t.Errorf("failed to clear DB after test: %v", err)
 		}
 	})
@@ -98,7 +98,7 @@ func Create[T service.Creatable](t *testing.T, createSQL service.CreateSQL[T], e
 	if err != nil {
 		assert.Fail(t, err.Error())
 	}
-	status, body := service.Create(context.Background(), createSQL, bytes)
+	status, body := service.Create(t.Context(), createSQL, bytes)
 	assert.Equal(t, http.StatusCreated, status)
 	var created T
 	if err := json.Unmarshal([]byte(body), &created); err != nil {
@@ -108,7 +108,7 @@ func Create[T service.Creatable](t *testing.T, createSQL service.CreateSQL[T], e
 }
 
 func Retrieve[T service.FieldsPtrsAware](t *testing.T, retrieveSQL service.RetrieveSQL[T], id string) T {
-	status, body := service.Retrieve(context.Background(), retrieveSQL, id)
+	status, body := service.Retrieve(t.Context(), retrieveSQL, id)
 	assert.Equal(t, http.StatusOK, status)
 	var retrieved T
 	if err := json.Unmarshal([]byte(body), &retrieved); err != nil {
@@ -118,7 +118,7 @@ func Retrieve[T service.FieldsPtrsAware](t *testing.T, retrieveSQL service.Retri
 }
 
 func List[T service.FieldsPtrsAware](t *testing.T, listSQL service.ListSQL[T], offset int, limit int) []T {
-	status, body := service.List(context.Background(), listSQL, offset, limit)
+	status, body := service.List(t.Context(), listSQL, offset, limit)
 	assert.Equal(t, http.StatusOK, status)
 
 	var listed []T
