@@ -15,9 +15,9 @@ import (
 func TestMain(m *testing.M) {
 	os.Exit(
 		func() int {
-			ctx := context.Background()
-			utils.StartDb(ctx, "postgres://test:test@localhost:9876/postgres?sslmode=disable", "test", "test", "../../db")
-			defer utils.StopDb(ctx, "../../db")
+			stop := utils.StartDb(context.Background(),
+				"postgres://test:test@localhost:9876/postgres?sslmode=disable", "test", "test", "../../db")
+			defer stop()
 
 			return m.Run() // Run tests
 		}(),

@@ -16,24 +16,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var postgres *embeddedpostgres.EmbeddedPostgres
-var tempDir string
 var conn *pgx.Conn
 
 func panicErr(message string, err error) {
 	panic(fmt.Errorf("%s: %w", message, err))
 }
 
-func StartDb(ctx context.Context, dbUrl string, username string, password string, dbDir string) {
-	// Create temp directory
-	var err error
-	tempDir, err = os.MkdirTemp("", "pgdata-*")
+func StartDb(ctx context.Context, dbUrl string, username string, password string, dbDir string) func() {
+	tempDir, err := os.MkdirTemp("", "pgdata-*")
 	if err != nil {
 		panicErr("failed to create temp dir", err)
 	}
 
 	// Start embedded Postgres
-	postgres = embeddedpostgres.NewDatabase(
+	postgres := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
 			Username(username).
 			Password(password).
@@ -65,17 +61,17 @@ func StartDb(ctx context.Context, dbUrl string, username string, password string
 	if err := db.Init(ctx, dbUrl, "test", "test"); err != nil {
 		panicErr("failed to initialize DB", err)
 	}
-}
 
-func StopDb(ctx context.Context, dbDir string) {
-	// Run drop.sql for cleanup
-	if err := runSQLFile(ctx, conn, dbDir+"/drop.sql"); err != nil {
-		fmt.Printf("Warning: Failed to run drop.sql: %v\n", err)
+	return func() {
+		// Run drop.sql for cleanup
+		if err := runSQLFile(ctx, conn, dbDir+"/drop.sql"); err != nil {
+			fmt.Printf("Warning: Failed to run drop.sql: %v\n", err)
+		}
+
+		_ = conn.Close(ctx)
+		_ = postgres.Stop()
+		_ = os.RemoveAll(tempDir)
 	}
-
-	_ = conn.Close(ctx)
-	_ = postgres.Stop()
-	_ = os.RemoveAll(tempDir)
 }
 
 func runSQLFile(ctx context.Context, conn *pgx.Conn, path string) error {
