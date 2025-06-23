@@ -25,27 +25,29 @@ func TestMain(m *testing.M) {
 }
 
 func TestListEmpty(t *testing.T) {
-	utils.TruncateTable(t, "customer")
-	status, body := service.List(t.Context(), ListSQL, 0, 10)
-	assert.Equal(t, 200, status)
-	assert.Equal(t, "[]", body)
+	utils.WithTable(t, "customer", func() {
+		status, body := service.List(t.Context(), ListSQL, 0, 10)
+		assert.Equal(t, 200, status)
+		assert.Equal(t, "[]", body)
 
-	var customers []Customer
-	err := json.Unmarshal([]byte(body), &customers)
-	assert.NoError(t, err)
+		var customers []Customer
+		err := json.Unmarshal([]byte(body), &customers)
+		assert.NoError(t, err)
 
-	assert.Equal(t, 0, len(customers))
+		assert.Equal(t, 0, len(customers))
+	})
 }
 
 func TestCreateAndGet(t *testing.T) {
-	utils.TruncateTable(t, "customer")
-	adam := Customer{Email: "adam@human.net", Name: "Adam"}
-	created := utils.Create(t, CreateSQL, &adam)
+	utils.WithTable(t, "customer", func() {
+		adam := Customer{Email: "adam@human.net", Name: "Adam"}
+		created := utils.Create(t, CreateSQL, &adam)
 
-	retrieved := utils.Retrieve(t, RetrieveSQL, created.ID)
-	assert.Equal(t, created, retrieved)
+		retrieved := utils.Retrieve(t, RetrieveSQL, created.ID)
+		assert.Equal(t, created, retrieved)
 
-	listed := utils.List(t, ListSQL, 0, 10)
-	assert.Equal(t, 1, len(listed))
-	assert.Equal(t, created, listed[0])
+		listed := utils.List(t, ListSQL, 0, 10)
+		assert.Equal(t, 1, len(listed))
+		assert.Equal(t, created, listed[0])
+	})
 }

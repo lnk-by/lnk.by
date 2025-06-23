@@ -83,20 +83,22 @@ func runSQLFile(ctx context.Context, conn *pgx.Conn, path string) error {
 	return err
 }
 
-func truncateTable(ctx context.Context, table string) error {
-	_, err := conn.Exec(ctx, fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table))
-	return err
+func truncateTable(t *testing.T, table string) {
+	_, err := conn.Exec(t.Context(), fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table))
+	assert.NoError(t, err)
 }
 
-func TruncateTable(t *testing.T, table string) {
-	err := truncateTable(t.Context(), table)
-	assert.NoError(t, err)
+func WithTable(t *testing.T, table string, f func()) {
+	truncateTable(t, table)
+	defer truncateTable(t, table)
 
-	t.Cleanup(func() {
-		// the t.Context() is already cancelled at this point
-		err := truncateTable(context.Background(), table)
-		assert.NoError(t, err)
-	})
+	f()
+
+	//t.Cleanup(func() {
+	//	// the t.Context() is already cancelled at this point
+	//	err := truncateTable(context.Background(), table)
+	//	assert.NoError(t, err)
+	//})
 }
 
 func Create[T service.Creatable](t *testing.T, createSQL service.CreateSQL[T], entity T) T {
