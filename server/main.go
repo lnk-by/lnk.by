@@ -104,9 +104,19 @@ func jsonErrorHandler(c *gin.Context) {
 		return
 	}
 
-	if c.Writer.Status() >= 400 {
+	if c.Writer.Status() >= http.StatusBadRequest {
 		c.JSON(c.Writer.Status(), gin.H{"error": http.StatusText(c.Writer.Status())})
 	}
+}
+
+func redirect(c *gin.Context) {
+	status, url, errStr := service.RetrieveValueAndMarshalError(c.Request.Context(), short_url.RetrieveSQL, c.Param("id"))
+	if errStr != "" {
+		respondWithJSON(c, status, errStr)
+		return
+	}
+
+	c.Redirect(http.StatusFound, url.Target)
 }
 
 func main() {
@@ -137,6 +147,8 @@ func main() {
 	router.GET("/shorturls", func(c *gin.Context) { list(c, short_url.ListSQL) })
 	router.GET("/shorturls/:id", func(c *gin.Context) { retrieve(c, short_url.RetrieveSQL) })
 	router.DELETE("/shorturls/:id", func(c *gin.Context) { deleteEntity(c, short_url.DeleteSQL) })
+
+	router.GET("/go/:id", redirect)
 
 	if err := router.Run("localhost:8080"); err != nil {
 		slog.Error("Failed to start server", "error", err.Error())

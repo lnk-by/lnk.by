@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -37,19 +36,11 @@ func failed(status int, err error) (int, string) {
 	return status, string(jsonBytes)
 }
 
-func succeeded(status int, t any) (int, string) {
-	jsonBytes, err := json.Marshal(t)
-	if err != nil {
-		return failed(http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err))
-	}
-
-	return status, string(jsonBytes)
-}
-
-func withConn(ctx context.Context, f func(conn *pgxpool.Conn) (int, string)) (int, string) {
+func withConn[T any](ctx context.Context, f func(conn *pgxpool.Conn) (int, T, error)) (int, T, error) {
 	conn, err := db.Get(ctx)
 	if err != nil {
-		return failed(http.StatusInternalServerError, fmt.Errorf("failed to get DB connection: %w", err))
+		var zero T
+		return http.StatusInternalServerError, zero, fmt.Errorf("failed to get DB connection: %w", err)
 	}
 	defer conn.Release()
 
@@ -61,7 +52,7 @@ type FieldsValsAware interface {
 	FieldsVals() []any
 }
 
-func decode[T FieldsValsAware](content []byte) (t T, status int, err error) {
+func decode[T FieldsValsAware](content []byte) (status int, t T, err error) {
 	t = inst[T]()
 	if err = json.Unmarshal(content, t); err != nil {
 		status = http.StatusInternalServerError
@@ -94,7 +85,7 @@ func CreateFromReqBody[T Creatable](ctx context.Context, createSQL CreateSQL[T],
 }
 
 func Create[T Creatable](ctx context.Context, createSQL CreateSQL[T], content []byte) (int, string) {
-	t, status, err := decode[T](content)
+	status, t, err := decode[T](content)
 	if err != nil {
 		return failed(status, fmt.Errorf("failed to create %T: %w", t, err))
 	}
@@ -104,21 +95,21 @@ func Create[T Creatable](ctx context.Context, createSQL CreateSQL[T], content []
 		maxAttempts = t.MaxAttempts()
 	}
 
-	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
+	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
 		for i := 0; i < maxAttempts; i++ {
 			t.Generate()
 			if _, err := conn.Exec(ctx, string(createSQL), t.FieldsVals()...); err != nil {
 				if isDuplicateKeyError(err) {
 					continue // try again
 				}
-				return failed(http.StatusInternalServerError, fmt.Errorf("failed to insert %T %v: %w", t, t, err))
+				return http.StatusInternalServerError, t, fmt.Errorf("failed to insert %T %v: %w", t, t, err)
 			}
 
-			return succeeded(http.StatusCreated, t)
+			return http.StatusCreated, t, nil
 		}
 
-		return http.StatusConflict, fmt.Errorf("failed to create unique identifier").Error()
-	})
+		return http.StatusConflict, t, fmt.Errorf("failed to create unique identifier for %T", t)
+	}))
 }
 
 func isDuplicateKeyError(err error) bool {
@@ -134,20 +125,47 @@ func inst[T any]() T {
 }
 
 func Retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
-	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
+	return marshal(retrieve(ctx, retrieveSQL, id))
+}
+
+func marshal[T any](status int, t T, err error) (int, string) {
+	if err != nil {
+		return failed(status, err)
+	}
+
+	jsonBytes, marshallingErr := json.Marshal(t)
+	if marshallingErr != nil {
+		return failed(http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err))
+	}
+
+	return status, string(jsonBytes)
+}
+
+func RetrieveValueAndMarshalError[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, T, string) {
+	status, value, err := retrieve(ctx, retrieveSQL, id)
+	if err != nil {
+		_, strErr := failed(status, err)
+		return status, value, strErr
+	}
+
+	return status, value, ""
+}
+
+func retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, T, error) {
+	return withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
 		t := inst[T]()
 		if err := conn.QueryRow(ctx, string(retrieveSQL), id).Scan(t.FieldsPtrs()...); err != nil {
 			switch {
 			case errors.Is(err, pgx.ErrNoRows):
-				return failed(http.StatusNotFound, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
+				return http.StatusNotFound, t, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err)
 			case errors.Is(err, pgx.ErrTooManyRows):
-				return failed(http.StatusConflict, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
+				return http.StatusConflict, t, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err)
 			default:
-				return failed(http.StatusInternalServerError, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err))
+				return http.StatusInternalServerError, t, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err)
 			}
 		}
 
-		return succeeded(http.StatusOK, t)
+		return http.StatusOK, t, nil
 	})
 }
 
@@ -165,81 +183,66 @@ func UpdateFromReqBody[T Updatable](ctx context.Context, updateSQL UpdateSQL[T],
 }
 
 func Update[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, content []byte) (int, string) {
-	t, status, err := decode[T](content)
+	status, t, err := decode[T](content)
 	if err != nil {
 		return failed(status, fmt.Errorf("failed to update %T: %w", t, err))
 	}
 
-	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
+	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
 		t.WithId(id)
 		commandTag, err := conn.Exec(ctx, string(updateSQL), t.FieldsVals()...)
 		switch {
 		case err != nil:
-			return failed(http.StatusInternalServerError, fmt.Errorf("failed to update %T %v: %w", t, t, err))
+			return http.StatusInternalServerError, t, fmt.Errorf("failed to update %T %v: %w", t, t, err)
 		case commandTag.RowsAffected() == 0:
-			return failed(http.StatusNotFound, fmt.Errorf("failed to update %T %v: %w", t, t, pgx.ErrNoRows))
+			return http.StatusNotFound, t, fmt.Errorf("failed to update %T %v: %w", t, t, pgx.ErrNoRows)
 		case commandTag.RowsAffected() > 1: // TODO is it too late?
-			return failed(http.StatusConflict, fmt.Errorf("failed to update %T %v: %w", t, t, pgx.ErrTooManyRows))
+			return http.StatusConflict, t, fmt.Errorf("failed to update %T %v: %w", t, t, pgx.ErrTooManyRows)
 		}
 
-		return succeeded(http.StatusOK, t)
-	})
+		return http.StatusOK, t, nil
+	}))
 }
 
 func Delete[T any](ctx context.Context, deleteSQL DeleteSQL[T], id string) (int, string) {
-	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
+	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
 		commandTag, err := conn.Exec(ctx, string(deleteSQL), id)
+		var t T // only to build the error
 		switch {
 		case err != nil:
-			var t T // only to build the error
-			return failed(http.StatusInternalServerError, fmt.Errorf("failed to delete %T with id %v: %w", t, id, err))
+			return http.StatusInternalServerError, t, fmt.Errorf("failed to delete %T with id %v: %w", t, id, err)
 		case commandTag.RowsAffected() == 0:
-			var t T // only to build the error
-			return failed(http.StatusNotFound, fmt.Errorf("failed to delete %T with id %v: %w", t, id, pgx.ErrNoRows))
+			return http.StatusNotFound, t, fmt.Errorf("failed to delete %T with id %v: %w", t, id, pgx.ErrNoRows)
 		case commandTag.RowsAffected() > 1: // TODO is it too late?
-			var t T // only to build the error
-			return failed(http.StatusNotFound, fmt.Errorf("failed to delete %T with id %v: %w", t, id, pgx.ErrTooManyRows))
+			return http.StatusNotFound, t, fmt.Errorf("failed to delete %T with id %v: %w", t, id, pgx.ErrTooManyRows)
 		}
 
-		return http.StatusNoContent, ""
-	})
+		return http.StatusNoContent, t, nil
+	}))
 }
 
 func List[T FieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int, limit int) (int, string) {
-	return withConn(ctx, func(conn *pgxpool.Conn) (int, string) {
+	return marshal(withConn[[]T](ctx, func(conn *pgxpool.Conn) (int, []T, error) {
 		sql := string(listSQL)
 
 		rows, err := conn.Query(ctx, sql, offset, limit)
 		if err != nil {
-			return failed(http.StatusInternalServerError, fmt.Errorf("failed to execute list query for %T: %w", new(T), err))
+			return http.StatusInternalServerError, nil, fmt.Errorf("failed to execute list query for %T: %w", new(T), err)
 		}
 		defer rows.Close()
 
-		var buf bytes.Buffer
-
-		buf.WriteByte('[')
-
-		t := inst[T]()
-		if _, err := pgx.ForEachRow(rows, t.FieldsPtrs(), func() error {
-			if buf.Len() > 1 { // the buf contains at least one marshalled row
-				buf.WriteByte(',')
+		var ts []T
+		for rows.Next() {
+			t := inst[T]()
+			if err := rows.Scan(t.FieldsPtrs()...); err != nil {
+				return http.StatusInternalServerError, ts, fmt.Errorf("failed to scan row to build the %T: %w", t, err)
 			}
 
-			jsonBytes, err := json.Marshal(t)
-			if err != nil {
-				return fmt.Errorf("failed to marshal entity: %w", err)
-			}
-			buf.Write(jsonBytes)
-
-			return nil
-		}); err != nil {
-			return failed(http.StatusInternalServerError, fmt.Errorf("failed to iterate over rows: %w", err))
+			ts = append(ts, t)
 		}
 
-		buf.WriteByte(']')
-
-		return http.StatusOK, buf.String()
-	})
+		return http.StatusOK, ts, nil
+	}))
 }
 
 func UUID() string {
