@@ -133,11 +133,13 @@ func marshal[T any](status int, t T, err error) (int, string) {
 		return failed(status, err)
 	}
 
-	jsonBytes, marshallingErr := json.Marshal(t)
-	if marshallingErr != nil {
-		return failed(http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err))
+	var jsonBytes []byte
+	if !reflect.ValueOf(t).IsNil() {
+		jsonBytes, err = json.Marshal(t)
+		if err != nil {
+			return failed(http.StatusInternalServerError, fmt.Errorf("failed to marshal the %T %v: %w", t, t, err))
+		}
 	}
-
 	return status, string(jsonBytes)
 }
 
@@ -231,7 +233,7 @@ func List[T FieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 		}
 		defer rows.Close()
 
-		var ts []T
+		ts := make([]T, 0)
 		for rows.Next() {
 			t := inst[T]()
 			if err := rows.Scan(t.FieldsPtrs()...); err != nil {
