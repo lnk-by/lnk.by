@@ -12,27 +12,27 @@ import (
 	"github.com/lnk.by/shared/service"
 )
 
-func Create[T service.Creatable](ctx context.Context, request events.APIGatewayProxyRequest, sql service.CreateSQL[T]) events.APIGatewayProxyResponse {
+func Create[T service.Creatable](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.CreateSQL[T]) events.APIGatewayV2HTTPResponse {
 	status, body := service.Create(ctx, sql, []byte(request.Body))
-	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
 }
 
-func Retrieve[T service.FieldsPtrsAware](ctx context.Context, request events.APIGatewayProxyRequest, sql service.RetrieveSQL[T], idParam string) events.APIGatewayProxyResponse {
+func Retrieve[T service.FieldsPtrsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.RetrieveSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Retrieve(ctx, sql, request.PathParameters[idParam])
-	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
 }
 
-func Update[T service.Updatable](ctx context.Context, request events.APIGatewayProxyRequest, sql service.UpdateSQL[T], idParam string) events.APIGatewayProxyResponse {
+func Update[T service.Updatable](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.UpdateSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Update(ctx, sql, request.PathParameters[idParam], []byte(request.Body))
-	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
 }
 
-func Delete[T service.FieldsValsAware](ctx context.Context, request events.APIGatewayProxyRequest, sql service.DeleteSQL[T], idParam string) events.APIGatewayProxyResponse {
+func Delete[T service.FieldsValsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.DeleteSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Delete(ctx, sql, request.PathParameters[idParam])
-	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
 }
 
-func List[T service.FieldsPtrsAware](ctx context.Context, request events.APIGatewayProxyRequest, listSQL service.ListSQL[T]) events.APIGatewayProxyResponse {
+func List[T service.FieldsPtrsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, listSQL service.ListSQL[T]) events.APIGatewayV2HTTPResponse {
 	params := request.QueryStringParameters
 	offset, err := parseQueryInt(params, "offset", 0)
 	if err != nil {
@@ -43,7 +43,7 @@ func List[T service.FieldsPtrsAware](ctx context.Context, request events.APIGate
 		return badRequestResponse(err)
 	}
 	status, body := service.List(ctx, listSQL, offset, limit)
-	return events.APIGatewayProxyResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
 }
 
 func parseQueryInt(params map[string]string, key string, defaultValue int) (int, error) {
@@ -58,9 +58,9 @@ func parseQueryInt(params map[string]string, key string, defaultValue int) (int,
 	return val, nil
 }
 
-func badRequestResponse(err error) events.APIGatewayProxyResponse {
+func badRequestResponse(err error) events.APIGatewayV2HTTPResponse {
 	slog.Warn("BadRequest:", "error", err)
-	return events.APIGatewayProxyResponse{
+	return events.APIGatewayV2HTTPResponse{
 		StatusCode: http.StatusBadRequest,
 		Body:       err.Error(),
 	}
