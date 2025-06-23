@@ -6,14 +6,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func GenerateId(t *testing.T) {
+func TestGenerateId(t *testing.T) {
 	generator, err := NewDefaultGenerator()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
+
 	id1 := generator.NextID()
-	assert.Len(t, id1, 10)
+	assert.Len(t, EncodeBase62(id1), 10)
 
 	id2 := generator.NextID()
-	assert.Len(t, id2, 10)
+	assert.Len(t, EncodeBase62(id2), 10)
 
 	assert.NotEqual(t, id1, id2)
 }
