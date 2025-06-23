@@ -2,12 +2,17 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
+	"testing"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/lnk.by/shared/db"
+	"github.com/lnk.by/shared/service"
+	"github.com/stretchr/testify/assert"
 )
 
 var postgres *embeddedpostgres.EmbeddedPostgres
@@ -72,4 +77,53 @@ func runSQLFile(conn *pgx.Conn, path string) error {
 	}
 	_, err = conn.Exec(context.Background(), string(content))
 	return err
+}
+
+func ClearDatabase(table string) error {
+	_, err := conn.Exec(context.Background(), fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table))
+	return err
+}
+
+func CleanupTestDatabase(t *testing.T, table string) {
+	ClearDatabase(table)
+	t.Cleanup(func() {
+		if err := ClearDatabase(table); err != nil {
+			t.Errorf("failed to clear DB after test: %v", err)
+		}
+	})
+}
+
+func Create[T service.Creatable](t *testing.T, createSQL service.CreateSQL[T], entity T) T {
+	bytes, err := json.Marshal(entity)
+	if err != nil {
+		assert.Fail(t, err.Error())
+	}
+	status, body := service.Create(context.Background(), createSQL, bytes)
+	assert.Equal(t, http.StatusCreated, status)
+	var created T
+	if err := json.Unmarshal([]byte(body), &created); err != nil {
+		assert.Fail(t, err.Error())
+	}
+	return created
+}
+
+func Retrieve[T service.FieldsPtrsAware](t *testing.T, retrieveSQL service.RetrieveSQL[T], id string) T {
+	status, body := service.Retrieve(context.Background(), retrieveSQL, id)
+	assert.Equal(t, http.StatusOK, status)
+	var retrieved T
+	if err := json.Unmarshal([]byte(body), &retrieved); err != nil {
+		assert.Fail(t, err.Error())
+	}
+	return retrieved
+}
+
+func List[T service.FieldsPtrsAware](t *testing.T, listSQL service.ListSQL[T], offset int, limit int) []T {
+	status, body := service.List(context.Background(), listSQL, offset, limit)
+	assert.Equal(t, http.StatusOK, status)
+
+	var listed []T
+	if err := json.Unmarshal([]byte(body), &listed); err != nil {
+		assert.Fail(t, err.Error())
+	}
+	return listed
 }
