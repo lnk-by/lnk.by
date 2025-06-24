@@ -34,17 +34,6 @@ SUBMODULES = \
 
 all: test build
 
-test1111:
-	#go test ./... -coverprofile=coverage.out
-
-	@for module in $(SUBMODULES); do \
-		echo "Running tests in $$module..."; \
-		go test ./$$module/... || true; \
-	done
-	@echo "Generating coverage report..."
-	@go tool cover -func=coverage.out || true
-
-
 test:
 	@echo "mode: set" > coverage.out
 	@for module in $(SUBMODULES); do \
@@ -57,9 +46,6 @@ test:
 	done
 	@echo "Generating coverage report..."
 	@go tool cover -func=coverage.out || true
-
-
-
 
 build:
 	mkdir -p $(BINS_DIR)
