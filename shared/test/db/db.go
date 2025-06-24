@@ -19,7 +19,7 @@ func panicErr(message string, err error) {
 	panic(fmt.Errorf("%s: %w", message, err))
 }
 
-func StartDb(ctx context.Context, dbUrl string, username string, password string, dbDir string) func() {
+func Start(ctx context.Context) func() {
 	tempDir, err := os.MkdirTemp("", "pgdata-*")
 	if err != nil {
 		panicErr("failed to create temp dir", err)
@@ -28,8 +28,8 @@ func StartDb(ctx context.Context, dbUrl string, username string, password string
 	// Start embedded Postgres
 	postgres := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
-			Username(username).
-			Password(password).
+			Username("test").
+			Password("test").
 			RuntimePath(tempDir).
 			Port(9876),
 	)
@@ -37,6 +37,8 @@ func StartDb(ctx context.Context, dbUrl string, username string, password string
 	if err := postgres.Start(); err != nil {
 		panicErr("failed to start embedded Postgres", err)
 	}
+
+	dbUrl := "postgres://test:test@localhost:9876/postgres?sslmode=disable"
 
 	// Connect using pgx
 	conn, err = pgx.Connect(ctx, dbUrl)
@@ -48,7 +50,7 @@ func StartDb(ctx context.Context, dbUrl string, username string, password string
 	}
 
 	// Run create.sql
-	if err := runSQLFile(ctx, conn, dbDir+"/create.sql"); err != nil {
+	if err := runSQLFile(ctx, conn, "../../db/create.sql"); err != nil {
 		if stopErr := postgres.Stop(); stopErr != nil {
 			err = errors.Join(err, stopErr)
 		}
@@ -61,7 +63,7 @@ func StartDb(ctx context.Context, dbUrl string, username string, password string
 
 	return func() {
 		// Run drop.sql for cleanup
-		if err := runSQLFile(ctx, conn, dbDir+"/drop.sql"); err != nil {
+		if err := runSQLFile(ctx, conn, "../../db/drop.sql"); err != nil {
 			fmt.Printf("Warning: Failed to run drop.sql: %v\n", err)
 		}
 
@@ -87,7 +89,9 @@ func truncateTable(t *testing.T, table string) {
 
 func WithTable(t *testing.T, table string, f func()) {
 	truncateTable(t, table)
-	defer truncateTable(t, table)
+	defer func() {
+		truncateTable(t, table)
+	}()
 
 	f()
 }

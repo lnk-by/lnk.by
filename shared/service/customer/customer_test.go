@@ -13,8 +13,7 @@ import (
 func TestMain(m *testing.M) {
 	os.Exit(
 		func() int {
-			stop := db.StartDb(context.Background(),
-				"postgres://test:test@localhost:9876/postgres?sslmode=disable", "test", "test", "../../db")
+			stop := db.Start(context.Background())
 			defer stop()
 
 			return m.Run() // Run tests
