@@ -1,0 +1,58 @@
+name: Deploy Lambdas (Matrix)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        target:
+          - aws/campaign/create
+          - aws/campaign/delete
+          - aws/campaign/list
+          - aws/campaign/retrieve
+          - aws/campaign/update
+          - aws/customer/create
+          - aws/customer/delete
+          - aws/customer/list
+          - aws/customer/retrieve
+          - aws/customer/update
+          - aws/organization/create
+          - aws/organization/delete
+          - aws/organization/list
+          - aws/organization/retrieve
+          - aws/organization/update
+          - aws/redirect
+          - aws/short_url/create
+          - aws/short_url/delete
+          - aws/short_url/list
+          - aws/short_url/retrieve
+          - aws/short_url/update
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Install dependencies
+      run: go mod tidy
+
+    - name: Build and Deploy Lambda
+      run: |
+        target="${{ matrix.target }}"
+        out_name=$(echo "$target" | sed 's|/|_|g')
+        GOOS=linux GOARCH=amd64 go build -o "$out_name" "$target"
+        zip -j "${out_name}.zip" "$out_name"
+        aws lambda update-function-code --function-name "$out_name" --zip-file "fileb://${out_name}.zip"
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: your-region
+
