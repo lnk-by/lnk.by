@@ -1,58 +1,132 @@
-name: Deploy Lambdas (Matrix)
+name: Deploy Multiple Lambdas
 
 on:
   workflow_dispatch:
+    inputs:
+      deploy_campaign_create:
+        description: "Deploy aws/campaign/create?"
+        required: false
+        type: boolean
+      deploy_campaign_delete:
+        description: "Deploy aws/campaign/delete?"
+        required: false
+        type: boolean
+      deploy_campaign_list:
+        description: "Deploy aws/campaign/list?"
+        required: false
+        type: boolean
+      deploy_campaign_retrieve:
+        description: "Deploy aws/campaign/retrieve?"
+        required: false
+        type: boolean
+      deploy_campaign_update:
+        description: "Deploy aws/campaign/update?"
+        required: false
+        type: boolean
+      deploy_customer_create:
+        description: "Deploy aws/customer/create?"
+        required: false
+        type: boolean
+      deploy_customer_delete:
+        description: "Deploy aws/customer/delete?"
+        required: false
+        type: boolean
+      deploy_customer_list:
+        description: "Deploy aws/customer/list?"
+        required: false
+        type: boolean
+      deploy_customer_retrieve:
+        description: "Deploy aws/customer/retrieve?"
+        required: false
+        type: boolean
+      deploy_customer_update:
+        description: "Deploy aws/customer/update?"
+        required: false
+        type: boolean
+      deploy_organization_create:
+        description: "Deploy aws/organization/create?"
+        required: false
+        type: boolean
+      deploy_organization_delete:
+        description: "Deploy aws/organization/delete?"
+        required: false
+        type: boolean
+      deploy_organization_list:
+        description: "Deploy aws/organization/list?"
+        required: false
+        type: boolean
+      deploy_organization_retrieve:
+        description: "Deploy aws/organization/retrieve?"
+        required: false
+        type: boolean
+      deploy_organization_update:
+        description: "Deploy aws/organization/update?"
+        required: false
+        type: boolean
+      deploy_redirect:
+        description: "Deploy aws/redirect?"
+        required: false
+        type: boolean
+      deploy_short_url_create:
+        description: "Deploy aws/short_url/create?"
+        required: false
+        type: boolean
+      deploy_short_url_delete:
+        description: "Deploy aws/short_url/delete?"
+        required: false
+        type: boolean
+      deploy_short_url_list:
+        description: "Deploy aws/short_url/list?"
+        required: false
+        type: boolean
+      deploy_short_url_retrieve:
+        description: "Deploy aws/short_url/retrieve?"
+        required: false
+        type: boolean
+      deploy_short_url_update:
+        description: "Deploy aws/short_url/update?"
+        required: false
+        type: boolean
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        target:
-          - aws/campaign/create
-          - aws/campaign/delete
-          - aws/campaign/list
-          - aws/campaign/retrieve
-          - aws/campaign/update
-          - aws/customer/create
-          - aws/customer/delete
-          - aws/customer/list
-          - aws/customer/retrieve
-          - aws/customer/update
-          - aws/organization/create
-          - aws/organization/delete
-          - aws/organization/list
-          - aws/organization/retrieve
-          - aws/organization/update
-          - aws/redirect
-          - aws/short_url/create
-          - aws/short_url/delete
-          - aws/short_url/list
-          - aws/short_url/retrieve
-          - aws/short_url/update
-
+    environment: 'PRODUCTION'
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
-
-    - name: Install dependencies
-      run: go mod tidy
-
-    - name: Build and Deploy Lambda
+    - name: Trigger selected Lambda deploys
       run: |
-        target="${{ matrix.target }}"
-        out_name=$(echo "$target" | sed 's|/|_|g')
-        GOOS=linux GOARCH=amd64 go build -o "$out_name" "$target"
-        zip -j "${out_name}.zip" "$out_name"
-        aws lambda update-function-code --function-name "$out_name" --zip-file "fileb://${out_name}.zip"
+        deploy_lambda() {
+          name=$1
+          echo "Triggering deploy for $name..."
+          gh workflow run deploy-one-lambda.yml -f lambda_name="$name"
+        }
+
+        if ${{ inputs.deploy_campaign_create }}; then deploy_lambda "aws/campaign/create"; fi
+        if ${{ inputs.deploy_campaign_delete }}; then deploy_lambda "aws/campaign/delete"; fi
+        if ${{ inputs.deploy_campaign_list }}; then deploy_lambda "aws/campaign/list"; fi
+        if ${{ inputs.deploy_campaign_retrieve }}; then deploy_lambda "aws/campaign/retrieve"; fi
+        if ${{ inputs.deploy_campaign_update }}; then deploy_lambda "aws/campaign/update"; fi
+
+        if ${{ inputs.deploy_customer_create }}; then deploy_lambda "aws/customer/create"; fi
+        if ${{ inputs.deploy_customer_delete }}; then deploy_lambda "aws/customer/delete"; fi
+        if ${{ inputs.deploy_customer_list }}; then deploy_lambda "aws/customer/list"; fi
+        if ${{ inputs.deploy_customer_retrieve }}; then deploy_lambda "aws/customer/retrieve"; fi
+        if ${{ inputs.deploy_customer_update }}; then deploy_lambda "aws/customer/update"; fi
+
+        if ${{ inputs.deploy_organization_create }}; then deploy_lambda "aws/organization/create"; fi
+        if ${{ inputs.deploy_organization_delete }}; then deploy_lambda "aws/organization/delete"; fi
+        if ${{ inputs.deploy_organization_list }}; then deploy_lambda "aws/organization/list"; fi
+        if ${{ inputs.deploy_organization_retrieve }}; then deploy_lambda "aws/organization/retrieve"; fi
+        if ${{ inputs.deploy_organization_update }}; then deploy_lambda "aws/organization/update"; fi
+
+        if ${{ inputs.deploy_redirect }}; then deploy_lambda "aws/redirect"; fi
+
+        if ${{ inputs.deploy_short_url_create }}; then deploy_lambda "aws/short_url/create"; fi
+        if ${{ inputs.deploy_short_url_delete }}; then deploy_lambda "aws/short_url/delete"; fi
+        if ${{ inputs.deploy_short_url_list }}; then deploy_lambda "aws/short_url/list"; fi
+        if ${{ inputs.deploy_short_url_retrieve }}; then deploy_lambda "aws/short_url/retrieve"; fi
+        if ${{ inputs.deploy_short_url_update }}; then deploy_lambda "aws/short_url/update"; fi
+
       env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: your-region
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

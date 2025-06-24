@@ -8,6 +8,7 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    environment: 'PRODUCTION'
 
     steps:
     - name: Checkout code
@@ -16,7 +17,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
+        go-version: ${{ vars.GO_VERSION }}
 
     - name: Install dependencies
       run: go mod tidy

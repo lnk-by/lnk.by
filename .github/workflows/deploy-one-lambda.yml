@@ -1,0 +1,43 @@
+name: Deploy One Lambda
+
+on:
+  workflow_dispatch:
+    inputs:
+      lambda_name:
+        description: "Lambda Name (e.g. aws/campaign/create); possible values aws/[customer|organization|campaign|short_url]/[create|list|retrieve|update|delete]/ or aws/redirect"
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: 'PRODUCTION'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ vars.GO_VERSION }}
+
+    - name: Install dependencies
+      run: go mod tidy
+
+    - name: Build Lambda
+      run: |
+        target="${{ inputs.lambda_name }}"
+        out_name=$(echo "$target" | sed 's|/|_|g')
+        GOOS=linux GOARCH=amd64 go build -o "$out_name" "./$target"
+        zip -j "${out_name}.zip" "$out_name"
+
+    - name: Deploy Lambda
+      run: |
+        target="${{ inputs.lambda_name }}"
+        out_name=$(echo "$target" | sed 's|/|_|g')
+        aws lambda update-function-code --function-name "$out_name" --zip-file "fileb://${out_name}.zip"
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: your-region
+
