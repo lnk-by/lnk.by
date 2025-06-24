@@ -56,7 +56,7 @@ func (u *ShortURL) Validate() error {
 
 func (u *ShortURL) Generate() {
 	if !u.Custom {
-		u.Key = service.EncodeBase62(generator.NextID())
+		u.Key = generator.NextBase62ID()
 	}
 
 	if u.Status == "" {

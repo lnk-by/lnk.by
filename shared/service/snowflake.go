@@ -79,6 +79,10 @@ func GetMachineID() int64 {
 	return int64(h.Sum32() & 0x3FF) // 10 bits = 1023 max
 }
 
+func (g *Generator) NextBase62ID() string {
+	return EncodeBase62(g.NextID())
+}
+
 func EncodeBase62(n int64) string {
 	if n == 0 {
 		return string(base62Chars[0])
