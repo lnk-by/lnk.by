@@ -6,9 +6,12 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/lnk.by/shared/db"
 	"github.com/lnk.by/shared/service"
 )
 
@@ -64,4 +67,13 @@ func badRequestResponse(err error) events.APIGatewayV2HTTPResponse {
 		StatusCode: http.StatusBadRequest,
 		Body:       err.Error(),
 	}
+}
+
+func LambdaMain(handler interface{}) {
+	ctx := context.Background()
+	if err := db.InitFromEnvironement(ctx); err != nil {
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	lambda.StartWithOptions(handler, lambda.WithContext(ctx))
 }

@@ -3,12 +3,22 @@ package db
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var pool *pgxpool.Pool
+
+func InitFromEnvironement(ctx context.Context) error {
+	if err := Init(context.Background(), os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
+		slog.Error("Failed to connect to database", "error", err)
+		return err
+	}
+	return nil
+}
 
 func Init(ctx context.Context, dbUrl string, user string, password string) error {
 	config, err := pgxpool.ParseConfig(dbUrl)

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/lnk.by/aws/adapter"
 	"github.com/lnk.by/shared/service/short_url"
 )
@@ -14,5 +13,5 @@ func retrieveShortURL(ctx context.Context, request events.APIGatewayV2HTTPReques
 }
 
 func main() {
-	lambda.Start(retrieveShortURL)
+	adapter.LambdaMain(retrieveShortURL)
 }
