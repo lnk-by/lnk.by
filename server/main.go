@@ -26,19 +26,20 @@ const (
 	contentTypeJSON   = "application/json"
 )
 
-func init() {
+func initDbConnection() error {
 	if err := godotenv.Load(); err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			slog.Error("Failed to load .env", "error", err)
-			os.Exit(1)
+			return err
 		}
 		slog.Info(".env file not found, continuing...")
 	}
 
-	if err := db.Init(context.Background(), os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
+	if err := db.InitFromEnvironement(context.Background()); err != nil {
 		slog.Error("Failed to connect to database", "error", err)
-		os.Exit(1)
+		return err
 	}
+	return nil
 }
 
 func list[T service.FieldsPtrsAware](c *gin.Context, sql service.ListSQL[T]) {
@@ -150,7 +151,13 @@ func main() {
 
 	router.GET("/go/:id", redirect)
 
+	if err := initDbConnection(); err != nil {
+		slog.Error("Failed to start server", "error", err.Error())
+		os.Exit(1)
+	}
+
 	if err := router.Run("localhost:8080"); err != nil {
 		slog.Error("Failed to start server", "error", err.Error())
+		os.Exit(1)
 	}
 }
