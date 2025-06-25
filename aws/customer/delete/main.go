@@ -5,11 +5,12 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/lnk.by/aws/adapter"
+	"github.com/lnk.by/shared/service"
 	"github.com/lnk.by/shared/service/customer"
 )
 
 func deleteCustomer(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	return adapter.Delete(ctx, request, customer.DeleteSQL, customer.IdParam), nil
+	return adapter.Delete(ctx, request, customer.DeleteSQL, service.IdParam), nil
 }
 
 func main() {

@@ -1,4 +1,4 @@
-name: Deploy Selected Lambdas
+name: Deploy or Remove Selected Lambdas
 
 on:
   workflow_dispatch:
@@ -8,69 +8,141 @@ on:
         required: true
         type: choice
         options:
+          - nothing
           - customer
           - campaign
           - organization
           - short_url
+          - all
+
       action:
         description: "Select CRUD action to deploy"
         required: true
         type: choice
         options:
+          - nothing
           - create
           - list
           - retrieve
           - update
           - delete
+          - all
+
       deploy_redirect:
-        description: "Deploy redirect lambda?"
+        description: "🔀 Manage redirect lambda?"
         required: false
         type: boolean
         default: false
 
+      operation:
+        description: "Select operation: Deploy or Remove"
+        required: true
+        type: choice
+        options:
+          - 🚀 Deploy
+          - 🗑️ Remove
+
+run-name: "${{ github.event.inputs.operation }} selected Lambdas: 🗂️${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}"
+
 jobs:
-  deploy:
+  deploy-matrix:
     runs-on: ubuntu-latest
-    environment: 'PRODUCTION'
-    env:
+    outputs:
+      lambda_names: ${{ steps.set-targets.outputs.lambda_names }}
+
+    steps:
+    - name: Determine targets
+      id: set-targets
+      run: |
+        targets=""
+
+        echo "entity: ${{ inputs.entity }}, action: ${{ inputs.action }}"
+        if [[ "${{ inputs.entity }}" != "nothing" && "${{ inputs.action }}" != "nothing" ]]; then
+          if [[ "${{ inputs.entity }}" == "all" ]]; then
+            for e in customer campaign organization short_url; do
+              if [[ "${{ inputs.action }}" == "all" ]]; then
+                for a in create list retrieve update delete; do
+                  targets+="aws/${e}/${a} "
+                done
+              else
+                targets+="aws/${e}/${{ inputs.action }} "
+              fi
+            done
+          else
+            if [[ "${{ inputs.action }}" == "all" ]]; then
+              for a in create list retrieve update delete; do
+                targets+="aws/${{ inputs.entity }}/${a} "
+              done
+            else
+              targets+="aws/${{ inputs.entity }}/${{ inputs.action }} "
+            fi
+          fi
+        fi
+
+        if [[ "${{ inputs.deploy_redirect }}" == "true" ]]; then
+          targets+="aws/redirect"
+        fi
+
+        echo "targets=$targets"
+        if [[ "$targets" == "" ]]; then
+          echo "❌ No targets specified"
+          exit 1
+        fi
+
+        # Convert array to JSON array with jq, remove whitespace
+        json=`echo $targets | sed 's/ $//' | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/'`
+        echo "json=$json"
+
+        # Write clean output without leading spaces
+        echo "lambda_names=$json" >> $GITHUB_OUTPUT
+        echo "targets=$targets" >> $GITHUB_OUTPUT
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
+      with:
+        go-version: ${{ vars.GO_VERSION }}
+
+    - name: Install dependencies
+      run: go mod tidy
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
+
+    - name: Build All Lambdas
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
+      run: |
+        targets="${{ steps.set-targets.outputs.targets }}"
+        mkdir artifacts
+        for lambda in $targets; do
+          out_name=$(echo "$lambda" | sed 's|/|_|g')
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bootstrap "./${lambda}/main.go"
+          zip -j "artifacts/${out_name}.zip" bootstrap
+        done
+
+    - name: Upload Artifacts
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: lambdas
+        path: artifacts/
+        retention-days: 1
+
+  call-deploy:
+    needs: deploy-matrix
+    strategy:
+      matrix:
+        lambda_name: ${{ fromJson(needs.deploy-matrix.outputs.lambda_names) }}
+      max-parallel: 5
+    uses: ./.github/workflows/deploy-one-lambda.yml
+    with:
+      lambda_name: ${{ matrix.lambda_name }}
+      operation: ${{ inputs.operation }}
+      do_build: "false"
+    secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: us-east-1
-      
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ vars.GO_VERSION }}
-
-      - name: Install dependencies
-        run: go mod tidy
-
-      - name: Determine Lambdas to Deploy
-        id: pick
-        run: |
-          # Build underscore-formatted targets directly
-          targets=()
-          if [[ "${{ inputs.deploy_redirect }}" == "true" ]]; then
-            targets+=("aws_redirect")
-          fi
-          e="${{ inputs.entity }}"
-          a="${{ inputs.action }}"
-          targets+=("aws_${e}_${a}")
-          echo "targets=${targets[*]}" >> $GITHUB_OUTPUT
-
-      - name: Build and Deploy Selected Lambdas
-        run: |
-          for target in ${{ steps.pick.outputs.targets }}; do
-            echo "Building and deploying $target"
-            GOOS=linux GOARCH=amd64 go build -o "$target" "./aws/${{ inputs.entity }}/${{ inputs.action }}"
-            zip -j "$target.zip" "$target"
-            aws lambda update-function-code --function-name "$target" --zip-file "fileb://$target.zip"
-            aws lambda update-function-configuration \
-              --function-name "$target" \
-              --environment "Variables={DB_URL=${{ secrets.DB_URL }},USERNAME=${{ secrets.DB_USER }},PASSWORD=${{ secrets.DB_PASSWORD }}}"
-          done
-
+      DB_URL: ${{ secrets.DB_URL }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}

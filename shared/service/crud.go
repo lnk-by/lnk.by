@@ -17,6 +17,8 @@ import (
 	"github.com/lnk.by/shared/db"
 )
 
+const IdParam = "id"
+
 type CreateSQL[T any] string
 type RetrieveSQL[T any] string
 type UpdateSQL[T any] string

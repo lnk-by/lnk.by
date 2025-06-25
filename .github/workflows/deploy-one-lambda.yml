@@ -1,47 +1,305 @@
-name: Deploy One Lambda
+name: Deploy or Remove One Lambda
 
 on:
   workflow_dispatch:
     inputs:
       lambda_name:
-        description: "Lambda Name (e.g. aws/campaign/create); possible values aws/[customer|organization|campaign|short_url]/[create|list|retrieve|update|delete]/ or aws/redirect"
+        description: "Lambda Name (e.g. aws/campaign/create or aws/redirect)"
+        required: true
+        type: choice
+        options:
+          - aws/organization/create
+          - aws/organization/retrieve
+          - aws/organization/update
+          - aws/organization/delete
+          - aws/organization/list
+          - aws/customer/create
+          - aws/customer/retrieve
+          - aws/customer/update
+          - aws/customer/delete
+          - aws/customer/list
+          - aws/campaign/create
+          - aws/campaign/retrieve
+          - aws/campaign/update
+          - aws/campaign/delete
+          - aws/campaign/list
+          - aws/short_url/create
+          - aws/short_url/retrieve
+          - aws/short_url/update
+          - aws/short_url/delete
+          - aws/short_url/list
+          - aws/redirect
+
+      operation:
+        description: "Select operation: Deploy or Remove"
+        required: true
+        type: choice
+        options:
+          - 🚀 Deploy
+          - 🗑️ Remove
+  workflow_call:
+    inputs:
+      lambda_name:
+        description: "Lambda Name (e.g. aws/campaign/create or aws/redirect)"
+        required: true
+        type: string
+      operation:
+        description: "Deploy or Remove"
+        required: true
+        type: string
+      do_build:
+        required: false
+        default: "true"
+        type: string    
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      DB_URL:
+        required: true
+      DB_USER:
+        required: true
+      DB_PASSWORD:
         required: true
 
+run-name: >
+  ${{ github.event_name == 'workflow_dispatch' && format('{0} Lambda {1}', github.event.inputs.operation, github.event.inputs.lambda_name) || 
+      github.event_name == 'workflow_call' && format('{0} Lambda {1}', inputs.operation, inputs.lambda_name) || 
+      'Running Lambda Workflow' }}
+
+
 jobs:
-  deploy:
+  lambda_manage:
     runs-on: ubuntu-latest
     environment: 'PRODUCTION'
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: us-east-1
-      
+      DB_URL: ${{ secrets.DB_URL }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      AWS_API_ID: ${{ vars.AWS_API_ID }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
+      if: ${{ inputs.do_build != 'false' }}
     - name: Set up Go
       uses: actions/setup-go@v5
+      if: ${{ inputs.do_build != 'false' }}
       with:
         go-version: ${{ vars.GO_VERSION }}
 
     - name: Install dependencies
       run: go mod tidy
+      if: ${{ inputs.do_build != 'false' }}
 
     - name: Compute out_name
       run: echo "out_name=$(echo "${{ inputs.lambda_name }}" | sed 's|/|_|g')" >> "$GITHUB_ENV"
 
-    - name: Build Lambda
+    - name: Compute route
       run: |
-        GOOS=linux GOARCH=amd64 go build -o "$out_name" "./$target"
-        zip -j "${out_name}.zip" "$out_name"
+        path=$(echo "${{ inputs.lambda_name }}" | sed 's/^aws//')
+        action=$(basename "$path")
+        if [[ "$action" == "redirect" ]]; then
+          route=$path
+        else
+          route=$(dirname $path)
+        fi
+        echo "action=$action" >> "$GITHUB_ENV"
+        echo "route=$route" >> "$GITHUB_ENV"
+
+        # Determine HTTP method based on action
+        case "$action" in
+          create)
+            method="POST"
+            suffix=""
+            ;;
+          update)
+            method="PUT"
+            suffix="/{id}"
+            ;;
+          delete)
+            method="DELETE"
+            suffix="/{id}"
+            ;;
+          retrieve)
+            method="GET"
+            suffix="/{id}"
+            ;;
+          list)
+            method="GET"
+            suffix=""
+            ;;
+          redirect)
+            method="GET"
+            suffix="/{id}"
+            ;;
+          *)
+            method="GET"
+            suffix=""
+            ;;
+        esac
+        echo "method=$method" >> "$GITHUB_ENV"
+        echo "suffix=$suffix" >> "$GITHUB_ENV"
+        echo "🔧 full_route=$method $route$suffix"
+
+    - name: Remove Lambda and API Gateway resources
+      if: ${{ endsWith(inputs.operation, 'Remove') }}
+      run: |
+        set -e
+        echo "🔧 Discovering route ID... for $method $route$suffix"
+        route_ids=$(aws apigatewayv2 get-routes --api-id "$AWS_API_ID" --query "Items[?RouteKey=='$method $route$suffix'].RouteId" --output text || true)
+        for route_id in $route_ids; do
+          echo "🔧 Removing route $route_id if exists..."
+          set +e
+          aws apigatewayv2 delete-route --api-id "$AWS_API_ID" --route-id "$route_id"
+          set -e
+        done
+
+        echo "🔧 Removing integrations if exist..."
+        integration_ids=$(aws apigatewayv2 get-integrations --api-id "$AWS_API_ID" --query "Items[?IntegrationUri=='arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:$out_name'].IntegrationId" --output text || true)
+        for integration_id in $integration_ids; do
+          echo "🔧 Removing integration $integration_id"
+          set +e
+          aws apigatewayv2 delete-integration --api-id "$AWS_API_ID" --integration-id "$integration_id"
+          set -e
+        done
+
+        echo "🔧 Removing Lambda permission..."
+        aws lambda remove-permission --function-name "$out_name" --statement-id "apigateway-permission" || true
+
+        echo "🔧 Removing Lambda function..."
+        aws lambda delete-function --function-name "$out_name" || true
+
+        for dep in $(aws apigatewayv2 get-deployments --api-id "$AWS_API_ID" --query 'Items[?AutoDeployed==`false`].[DeploymentId]' --output text); do
+          echo "🔧 Removing deployment $dep"
+          set +e
+          aws apigatewayv2 delete-deployment --api-id "$AWS_API_ID" --deployment-id "$dep"
+          set -e
+        done
+
+        echo "✅ Removal complete."
+
+    - name: Checkout
+      uses: actions/checkout@v4
+      if: ${{ endsWith(inputs.operation, 'Deploy') && inputs.do_build == 'false' }}
+
+    - name: Download Artifacts
+      uses: actions/download-artifact@v4
+      if: ${{ endsWith(inputs.operation, 'Deploy') && inputs.do_build == 'false' }}
+      with:
+        name: lambdas
 
     - name: Deploy Lambda
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
       run: |
-        aws lambda update-function-code --function-name "$out_name" --zip-file "fileb://${out_name}.zip"
+        set -e
+        out_name="${out_name}"
 
-    - name: Configure Lambda Environment
-      run: |
+        if [[ ! -f "${out_name}.zip" ]]; then
+          echo "🔧 Building Lambda..."
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bootstrap "./${{ inputs.lambda_name }}/main.go"
+          zip -j "${out_name}.zip" bootstrap
+        else
+          echo "✅ Reusing existing artifact: ${out_name}.zip"
+        fi
+
+        echo "🔧 Checking if Lambda exists..."
+        set +e
+        aws lambda get-function --function-name "$out_name" >/dev/null 2>&1
+        exists=$?
+        set -e
+
+        if [[ $exists -eq 0 ]]; then
+          echo "Lambda exists. Updating code and config..."
+          aws lambda update-function-code --function-name "$out_name" --zip-file "fileb://${out_name}.zip"
+          echo "✅ Lambda update complete."
+          exit 0
+        fi
+
+        echo "Lambda does not exist. Creating Lambda..."
+
+        LAMBDA_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/LAMBDA_MANAGER"
+
+        aws lambda create-function \
+          --function-name "$out_name" \
+          --runtime provided.al2 \
+          --role "$LAMBDA_ROLE_ARN" \
+          --handler "bootstrap" \
+          --zip-file "fileb://${out_name}.zip" \
+          --timeout 15 \
+          --memory-size 128
+
+        echo "Waiting for Lambda to become active..."
+        while true; do
+            set +e
+            status=$(aws lambda get-function --function-name "$out_name" --query 'Configuration.State' --output text 2>/dev/null)
+            set -e
+
+            if [[ "$status" == "Active" ]]; then
+                echo "Lambda function is active."
+                break
+            elif [[ "$status" == "Failed" ]]; then
+                echo "❌ Lambda creation failed."
+                exit 1
+            else
+                echo "Current status: $status. Waiting..."
+                sleep 2
+            fi
+        done
+
+        echo "🔧 Configuring environment..."
         aws lambda update-function-configuration \
           --function-name "$out_name" \
-          --environment "Variables={DB_URL=${{ secrets.DB_URL }},USERNAME=${{ secrets.DB_USER }},PASSWORD=${{ secrets.DB_PASSWORD }}}"
+          --environment "Variables={DB_URL=$DB_URL,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD}"
+
+        echo "🔧 Configuring VPC..."
+        VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query 'Vpcs[0].VpcId' --output text)
+
+        SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[*].SubnetId' --output text | tr '\t' ',')
+        echo SUBNET_IDS=$SUBNET_IDS
+
+        SECURITY_GROUP_ID=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=default" --query 'SecurityGroups[0].GroupId' --output text)
+        echo SECURITY_GROUP_ID=$SECURITY_GROUP_ID
+
+        aws lambda update-function-configuration \
+          --function-name "$out_name" \
+          --vpc-config "SubnetIds=$SUBNET_IDS,SecurityGroupIds=$SECURITY_GROUP_ID"
+
+
+        echo "🔧 Creating API Gateway integration..."
+        integration_id=$(aws apigatewayv2 create-integration \
+          --api-id "$AWS_API_ID" \
+          --integration-type AWS_PROXY \
+          --integration-uri "arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:$out_name" \
+          --payload-format-version "2.0" \
+          --query 'IntegrationId' \
+          --output text)
+
+        echo "🔧 Creating route parts..."
+
+        aws apigatewayv2 create-route \
+          --api-id "$AWS_API_ID" \
+          --route-key "$method $route$suffix" \
+          --target "integrations/$integration_id"
+
+        echo "🔧 Deploying API..."
+        aws apigatewayv2 create-deployment --api-id "$AWS_API_ID"
+
+        echo "🔧 Adding Lambda permission..."
+        permission_suffix=''
+        if [[ "$suffix" != "" ]]; then
+          permission_suffix='/*'
+        fi
+        aws lambda add-permission \
+          --function-name "$out_name" \
+          --statement-id "apigateway-permission" \
+          --action lambda:InvokeFunction \
+          --principal apigateway.amazonaws.com \
+          --source-arn "arn:aws:execute-api:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:$AWS_API_ID/*/$method$route$permission_suffix"
+
+        echo "✅ Lambda deployment complete."
