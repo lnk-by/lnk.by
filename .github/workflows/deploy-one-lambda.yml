@@ -11,7 +11,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: 'PRODUCTION'
-
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: us-east-1
+      
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -24,20 +28,20 @@ jobs:
     - name: Install dependencies
       run: go mod tidy
 
+    - name: Compute out_name
+      run: echo "out_name=$(echo "${{ inputs.lambda_name }}" | sed 's|/|_|g')" >> "$GITHUB_ENV"
+
     - name: Build Lambda
       run: |
-        target="${{ inputs.lambda_name }}"
-        out_name=$(echo "$target" | sed 's|/|_|g')
         GOOS=linux GOARCH=amd64 go build -o "$out_name" "./$target"
         zip -j "${out_name}.zip" "$out_name"
 
     - name: Deploy Lambda
       run: |
-        target="${{ inputs.lambda_name }}"
-        out_name=$(echo "$target" | sed 's|/|_|g')
         aws lambda update-function-code --function-name "$out_name" --zip-file "fileb://${out_name}.zip"
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: your-region
 
+    - name: Configure Lambda Environment
+      run: |
+        aws lambda update-function-configuration \
+          --function-name "$out_name" \
+          --environment "Variables={DB_URL=${{ secrets.DB_URL }},USERNAME=${{ secrets.DB_USER }},PASSWORD=${{ secrets.DB_PASSWORD }}}"
