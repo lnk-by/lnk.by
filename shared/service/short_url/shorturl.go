@@ -72,8 +72,6 @@ func (u *ShortURL) MaxAttempts() int {
 	return 10
 }
 
-const IdParam = "key"
-
 var (
 	CreateSQL   service.CreateSQL[*ShortURL]   = "INSERT INTO short_url (key, is_custom, target, campaign_id, customer_id, status) VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6)"
 	RetrieveSQL service.RetrieveSQL[*ShortURL] = "SELECT key, is_custom, target, COALESCE(campaign_id, ''), COALESCE(customer_id, ''), status FROM short_url WHERE key = $1 AND status='active'"

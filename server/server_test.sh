@@ -39,3 +39,13 @@ curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.googl
 
 # custom short URL
 curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.google.com", "key": "cnn", "custom": true, "campaign_id": "735aef8a-4d24-11f0-9888-002b67d6b1c3", "customer_id": "02695f62-4d25-11f0-9888-002b67d6b1c3"}' http://localhost:8080/shorturls
+
+
+
+curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.youtube.com", "key": "ubt", "custom": true}' http://localhost:8080/short_url
+
+
+
+
+
+curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.youtube.com", "key": "ubt", "custom": true}' https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com/short_url

@@ -42,8 +42,6 @@ func (o *Organization) Generate() {
 	}
 }
 
-const IdParam = "organizationId"
-
 var (
 	CreateSQL   service.CreateSQL[*Organization]   = "INSERT INTO organization (id, name, status) VALUES ($1, $2, $3)"
 	RetrieveSQL service.RetrieveSQL[*Organization] = "SELECT id, name, status FROM organization WHERE id = $1 AND status='active'"

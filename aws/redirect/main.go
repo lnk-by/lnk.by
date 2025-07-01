@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -11,7 +12,8 @@ import (
 )
 
 func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	status, url, errStr := service.RetrieveValueAndMarshalError(ctx, short_url.RetrieveSQL, short_url.IdParam)
+	slog.Debug("Handling redirect", "RawPath", req.RawPath, "param[key]", req.PathParameters[service.IdParam])
+	status, url, errStr := service.RetrieveValueAndMarshalError(ctx, short_url.RetrieveSQL, req.PathParameters[service.IdParam])
 	if errStr != "" {
 		return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: errStr}, nil
 	}

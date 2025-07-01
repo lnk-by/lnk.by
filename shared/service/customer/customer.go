@@ -2,6 +2,7 @@ package customer
 
 import (
 	"errors"
+
 	"github.com/lnk.by/shared/service"
 	"github.com/lnk.by/shared/utils"
 )
@@ -46,8 +47,6 @@ func (c *Customer) Generate() {
 		c.Status = utils.StatusActive
 	}
 }
-
-const IdParam = "customerId"
 
 var (
 	CreateSQL   service.CreateSQL[*Customer]   = "INSERT INTO customer (id, email, name, organization_id, status) VALUES ($1, $2, $3, NULLIF($4, ''), $5)"

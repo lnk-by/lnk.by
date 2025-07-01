@@ -13,6 +13,7 @@ import (
 var pool *pgxpool.Pool
 
 func InitFromEnvironement(ctx context.Context) error {
+	slog.Info("Connecting to database ", "url", os.Getenv("DB_URL"), "user", os.Getenv("DB_USER"), "password", os.Getenv("DB_PASSWORD"))
 	if err := Init(context.Background(), os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		return err

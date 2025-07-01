@@ -44,8 +44,6 @@ func (c *Campaign) Generate() {
 	}
 }
 
-const IdParam = "campaignId"
-
 var (
 	CreateSQL   service.CreateSQL[*Campaign]   = "INSERT INTO campaign (id, name, organization_id, customer_id, status) VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), $5)"
 	RetrieveSQL service.RetrieveSQL[*Campaign] = "SELECT id, name, COALESCE(organization_id, ''), COALESCE(customer_id, ''), status FROM campaign WHERE id = $1 AND status='active'"
