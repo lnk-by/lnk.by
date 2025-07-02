@@ -22,8 +22,16 @@ import (
 )
 
 const (
-	contentTypeHeader = "Content-Type"
-	contentTypeJSON   = "application/json"
+	contentTypeHeader   = "Content-Type"
+	contentTypeJSON     = "application/json"
+	authorizationHeader = "Authorization"
+
+	accessControlAllowOrigin   = "Access-Control-Allow-Origin"
+	accessControlAllowMethods  = "Access-Control-Allow-Methods"
+	accessControlAllowHeaders  = "Access-Control-Allow-Headers"
+	accessControlExposeHeaders = "Access-Control-Expose-Headers"
+
+	any = "*"
 )
 
 func initDbConnection() error {
@@ -93,7 +101,23 @@ func deleteEntity[T service.FieldsPtrsAware](c *gin.Context, sql service.DeleteS
 
 func respondWithJSON(c *gin.Context, statusCode int, jsonStr string) {
 	c.Header(contentTypeHeader, contentTypeJSON)
+	c.Header(accessControlAllowOrigin, any)
 	c.String(statusCode, jsonStr)
+}
+
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header(accessControlAllowOrigin, any)
+		c.Header(accessControlAllowMethods, "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Header(accessControlAllowHeaders, "Authorization, Content-Type")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
 }
 
 func jsonErrorHandler(c *gin.Context) {
@@ -122,7 +146,7 @@ func redirect(c *gin.Context) {
 
 func main() {
 	router := gin.Default()
-	router.Use(gin.Recovery(), jsonErrorHandler)
+	router.Use(gin.Recovery(), jsonErrorHandler, CORSMiddleware())
 	router.RemoveExtraSlash = true
 
 	router.POST("/customers", func(c *gin.Context) { create(c, customer.CreateSQL) })
