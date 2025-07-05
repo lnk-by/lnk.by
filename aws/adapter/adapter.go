@@ -15,24 +15,29 @@ import (
 	"github.com/lnk.by/shared/service"
 )
 
+var standardHeaders = map[string]string{
+	"Content-Type":                "application/json",
+	"Access-Control-Allow-Origin": "*",
+}
+
 func Create[T service.Creatable](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.CreateSQL[T]) events.APIGatewayV2HTTPResponse {
 	status, body := service.Create(ctx, sql, []byte(request.Body))
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
 func Retrieve[T service.FieldsPtrsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.RetrieveSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Retrieve(ctx, sql, request.PathParameters[idParam])
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
 func Update[T service.Updatable](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.UpdateSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Update(ctx, sql, request.PathParameters[idParam], []byte(request.Body))
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
 func Delete[T service.FieldsValsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.DeleteSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Delete(ctx, sql, request.PathParameters[idParam])
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
 func List[T service.FieldsPtrsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, listSQL service.ListSQL[T]) events.APIGatewayV2HTTPResponse {
@@ -46,7 +51,7 @@ func List[T service.FieldsPtrsAware](ctx context.Context, request events.APIGate
 		return badRequestResponse(err)
 	}
 	status, body := service.List(ctx, listSQL, offset, limit)
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
 func parseQueryInt(params map[string]string, key string, defaultValue int) (int, error) {

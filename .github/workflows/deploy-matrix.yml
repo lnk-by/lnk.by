@@ -49,12 +49,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       lambda_names: ${{ steps.set-targets.outputs.lambda_names }}
+      cors_lambda_names: ${{ steps.set-targets.outputs.cors_lambda_names }}
 
     steps:
     - name: Determine targets
       id: set-targets
       run: |
         targets=""
+        cors_targets=""
 
         echo "entity: ${{ inputs.entity }}, action: ${{ inputs.action }}"
         if [[ "${{ inputs.entity }}" != "nothing" && "${{ inputs.action }}" != "nothing" ]]; then
@@ -78,11 +80,15 @@ jobs:
             fi
           fi
         fi
+        cors_targets=$targets
 
+        targets+="aws/cors "
+        cors_targets=$targets
         if [[ "${{ inputs.deploy_redirect }}" == "true" ]]; then
           targets+="aws/redirect"
         fi
 
+        echo "cors_targets=$cors_targets"
         echo "targets=$targets"
         if [[ "$targets" == "" ]]; then
           echo "❌ No targets specified"
@@ -90,10 +96,17 @@ jobs:
         fi
 
         # Convert array to JSON array with jq, remove whitespace
+        cors_json=`echo $cors_targets | sed 's/ $//' | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/'`
         json=`echo $targets | sed 's/ $//' | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/'`
+        echo "cors_json=$cors_json"
         echo "json=$json"
+        echo "cors_targets=$cors_targets"
+        echo "targets=$targets"
+
 
         # Write clean output without leading spaces
+        echo "cors_lambda_names=$cors_json" >> $GITHUB_OUTPUT
+        echo "cors_targets=$cors_targets" >> $GITHUB_OUTPUT
         echo "lambda_names=$json" >> $GITHUB_OUTPUT
         echo "targets=$targets" >> $GITHUB_OUTPUT
 
@@ -129,7 +142,7 @@ jobs:
         path: artifacts/
         retention-days: 1
 
-  call-deploy:
+  call-deploy-lambda:
     needs: deploy-matrix
     strategy:
       matrix:
@@ -140,6 +153,28 @@ jobs:
       lambda_name: ${{ matrix.lambda_name }}
       operation: ${{ inputs.operation }}
       do_build: "false"
+      manage: "Lambda"
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      DB_URL: ${{ secrets.DB_URL }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+
+  call-deploy-cors:
+    needs:
+      - deploy-matrix
+      - call-deploy-lambda
+    strategy:
+      matrix:
+        lambda_name: ${{ fromJson(needs.deploy-matrix.outputs.cors_lambda_names) }}
+      max-parallel: 3
+    uses: ./.github/workflows/deploy-one-lambda.yml
+    with:
+      lambda_name: ${{ matrix.lambda_name }}
+      operation: ${{ inputs.operation }}
+      do_build: "false"
+      manage: "CORS"
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

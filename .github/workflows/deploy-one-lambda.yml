@@ -29,6 +29,15 @@ on:
           - aws/short_url/delete
           - aws/short_url/list
           - aws/redirect
+          - aws/cors
+
+      manage:
+        description: "What to manage: selected lambda or corresponding CORS OPTIONS"
+        required: true
+        type: choice
+        options:
+          - Lambda
+          - CORS
 
       operation:
         description: "Select operation: Deploy or Remove"
@@ -51,6 +60,10 @@ on:
         required: false
         default: "true"
         type: string    
+      manage:
+        description: "Lambda|CORS"
+        required: true
+        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -64,10 +77,9 @@ on:
         required: true
 
 run-name: >
-  ${{ github.event_name == 'workflow_dispatch' && format('{0} Lambda {1}', github.event.inputs.operation, github.event.inputs.lambda_name) || 
-      github.event_name == 'workflow_call' && format('{0} Lambda {1}', inputs.operation, inputs.lambda_name) || 
+  ${{ github.event_name == 'workflow_dispatch' && format('{0} {1}Lambda {2}', github.event.inputs.operation, github.event.inputs.manage == 'CORS' && 'CORS for ' || '', github.event.inputs.lambda_name) ||
+      github.event_name == 'workflow_call' && format('{0} {1}Lambda  {2}', inputs.operation, inputs.manage == 'CORS' && 'CORS for ' || '', inputs.lambda_name) ||
       'Running Lambda Workflow' }}
-
 
 jobs:
   lambda_manage:
@@ -98,7 +110,14 @@ jobs:
       if: ${{ inputs.do_build != 'false' }}
 
     - name: Compute out_name
-      run: echo "out_name=$(echo "${{ inputs.lambda_name }}" | sed 's|/|_|g')" >> "$GITHUB_ENV"
+      run: |
+        if [[ "${{ inputs.manage }}" == "Lambda" ]]; then
+          lambda_path=${{ inputs.lambda_name }}
+        else
+          lambda_path=aws/cors
+        fi 
+        echo "lambda_path=${lambda_path}" >> "$GITHUB_ENV"
+        echo "out_name=$(echo "${lambda_path}" | sed 's|/|_|g')" >> "$GITHUB_ENV"
 
     - name: Compute route
       run: |
@@ -143,6 +162,10 @@ jobs:
             suffix=""
             ;;
         esac
+
+        if [[ "${{ inputs.manage }}" == "CORS" || "$lambda_path" == "aws/cors" ]]; then
+          method="OPTIONS"
+        fi
         echo "method=$method" >> "$GITHUB_ENV"
         echo "suffix=$suffix" >> "$GITHUB_ENV"
         echo "🔧 full_route=$method $route$suffix"
@@ -195,14 +218,14 @@ jobs:
         name: lambdas
 
     - name: Deploy Lambda
-      if: ${{ endsWith(inputs.operation, 'Deploy') }}
+      if: ${{ endsWith(inputs.operation, 'Deploy') && inputs.manage == 'Lambda' }}
       run: |
         set -e
         out_name="${out_name}"
 
         if [[ ! -f "${out_name}.zip" ]]; then
           echo "🔧 Building Lambda..."
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bootstrap "./${{ inputs.lambda_name }}/main.go"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bootstrap "./$lambda_path/main.go"
           zip -j "${out_name}.zip" bootstrap
         else
           echo "✅ Reusing existing artifact: ${out_name}.zip"
@@ -270,7 +293,30 @@ jobs:
           --function-name "$out_name" \
           --vpc-config "SubnetIds=$SUBNET_IDS,SecurityGroupIds=$SECURITY_GROUP_ID"
 
+    - name: Config Lambda Route
+      if: ${{ endsWith(inputs.operation, 'Deploy') && env.route != '/' }}
+      run: |
+        set -e
+        out_name="${out_name}"
+        echo "route=$route"
 
+        permission_id="permission$(echo $route | sed 's|/||g')"
+
+        echo "🔧 Adding Lambda permission for $method$route$permission_suffix..."
+        permission_suffix=''
+        if [[ "$suffix" != "" ]]; then
+          permission_suffix='/*'
+          permission_id="${permission_id}_all"
+        fi
+        # the same route can be duplicate, so we prevent build failure by ignoring the command failure
+        source_arn="arn:aws:execute-api:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:$AWS_API_ID/*/$method$route$permission_suffix"
+        if [[ "${{ inputs.manage }}" == "CORS" && "${{ inputs.do_build }}" == "false" ]]; then
+          echo "safely run add-permission"
+          aws lambda add-permission --function-name "$out_name" --statement-id "$permission_id" --action lambda:InvokeFunction --principal apigateway.amazonaws.com --source-arn "$source_arn" || true
+        else
+          echo "directly run add-permission"
+          aws lambda add-permission --function-name "$out_name" --statement-id "$permission_id" --action lambda:InvokeFunction --principal apigateway.amazonaws.com --source-arn "$source_arn"
+        fi
         echo "🔧 Creating API Gateway integration..."
         integration_id=$(aws apigatewayv2 create-integration \
           --api-id "$AWS_API_ID" \
@@ -280,26 +326,23 @@ jobs:
           --query 'IntegrationId' \
           --output text)
 
-        echo "🔧 Creating route parts..."
-
-        aws apigatewayv2 create-route \
-          --api-id "$AWS_API_ID" \
-          --route-key "$method $route$suffix" \
-          --target "integrations/$integration_id"
+        echo "🔧 Creating route parts for integration $integration_id, $method $route$suffix..."
+        existing_route=$(aws apigatewayv2 get-routes --api-id "$AWS_API_ID" --query "Items[?RouteKey=='$method $route$suffix']" --output text)
+        if [[ -z "$existing_route" ]]; then
+          echo "🔧 Creating API Gateway route $method $route$suffix for integration $integration_id"
+          # the same route can be share among several lambda functions that are mapped to different HTTP method, so we ignore failure of this command
+          if [[ "${{ inputs.manage }}" == "CORS" && "${{ inputs.do_build }}" == "false" ]]; then
+            echo "safely run create-route"
+            aws apigatewayv2 create-route --api-id "$AWS_API_ID" --route-key "$method $route$suffix" --target "integrations/$integration_id" || true
+          else
+            echo "directly run create-route"
+            aws apigatewayv2 create-route --api-id "$AWS_API_ID" --route-key "$method $route$suffix" --target "integrations/$integration_id"
+          fi
+        else
+          echo "🔧 API Gateway route $method $route$suffix for integration $integration_id already exists"
+        fi
 
         echo "🔧 Deploying API..."
         aws apigatewayv2 create-deployment --api-id "$AWS_API_ID"
-
-        echo "🔧 Adding Lambda permission..."
-        permission_suffix=''
-        if [[ "$suffix" != "" ]]; then
-          permission_suffix='/*'
-        fi
-        aws lambda add-permission \
-          --function-name "$out_name" \
-          --statement-id "apigateway-permission" \
-          --action lambda:InvokeFunction \
-          --principal apigateway.amazonaws.com \
-          --source-arn "arn:aws:execute-api:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:$AWS_API_ID/*/$method$route$permission_suffix"
 
         echo "✅ Lambda deployment complete."
