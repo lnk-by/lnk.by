@@ -18,7 +18,7 @@ import (
 	"github.com/lnk.by/shared/service/campaign"
 	"github.com/lnk.by/shared/service/customer"
 	"github.com/lnk.by/shared/service/organization"
-	"github.com/lnk.by/shared/service/short_url"
+	"github.com/lnk.by/shared/service/shorturl"
 )
 
 const (
@@ -135,7 +135,7 @@ func jsonErrorHandler(c *gin.Context) {
 }
 
 func redirect(c *gin.Context) {
-	status, url, errStr := service.RetrieveValueAndMarshalError(c.Request.Context(), short_url.RetrieveSQL, c.Param("id"))
+	status, url, errStr := service.RetrieveValueAndMarshalError(c.Request.Context(), shorturl.RetrieveSQL, c.Param("id"))
 	if errStr != "" {
 		respondWithJSON(c, status, errStr)
 		return
@@ -167,11 +167,11 @@ func main() {
 	router.GET("/campaigns/:id", func(c *gin.Context) { retrieve(c, campaign.RetrieveSQL) })
 	router.DELETE("/campaigns/:id", func(c *gin.Context) { deleteEntity(c, campaign.DeleteSQL) })
 
-	router.POST("/shorturls", func(c *gin.Context) { create(c, short_url.CreateSQL) })
-	router.PUT("/shorturls/:id", func(c *gin.Context) { update(c, short_url.UpdateSQL) })
-	router.GET("/shorturls", func(c *gin.Context) { list(c, short_url.ListSQL) })
-	router.GET("/shorturls/:id", func(c *gin.Context) { retrieve(c, short_url.RetrieveSQL) })
-	router.DELETE("/shorturls/:id", func(c *gin.Context) { deleteEntity(c, short_url.DeleteSQL) })
+	router.POST("/shorturls", func(c *gin.Context) { create(c, shorturl.CreateSQL) })
+	router.PUT("/shorturls/:id", func(c *gin.Context) { update(c, shorturl.UpdateSQL) })
+	router.GET("/shorturls", func(c *gin.Context) { list(c, shorturl.ListSQL) })
+	router.GET("/shorturls/:id", func(c *gin.Context) { retrieve(c, shorturl.RetrieveSQL) })
+	router.DELETE("/shorturls/:id", func(c *gin.Context) { deleteEntity(c, shorturl.DeleteSQL) })
 
 	router.GET("/go/:id", redirect)
 

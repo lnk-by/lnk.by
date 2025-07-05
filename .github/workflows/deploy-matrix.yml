@@ -12,7 +12,7 @@ on:
           - customer
           - campaign
           - organization
-          - short_url
+          - shorturl
           - all
 
       action:

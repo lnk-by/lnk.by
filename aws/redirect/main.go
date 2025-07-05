@@ -8,12 +8,12 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/lnk.by/aws/adapter"
 	"github.com/lnk.by/shared/service"
-	"github.com/lnk.by/shared/service/short_url"
+	"github.com/lnk.by/shared/service/shorturl"
 )
 
 func handler(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	slog.Debug("Handling redirect", "RawPath", req.RawPath, "param[key]", req.PathParameters[service.IdParam])
-	status, url, errStr := service.RetrieveValueAndMarshalError(ctx, short_url.RetrieveSQL, req.PathParameters[service.IdParam])
+	status, url, errStr := service.RetrieveValueAndMarshalError(ctx, shorturl.RetrieveSQL, req.PathParameters[service.IdParam])
 	if errStr != "" {
 		return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: errStr}, nil
 	}

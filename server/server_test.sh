@@ -42,10 +42,10 @@ curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.googl
 
 
 
-curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.youtube.com", "key": "ubt", "custom": true}' http://localhost:8080/short_url
+curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.youtube.com", "key": "ubt", "custom": true}' http://localhost:8080/shorturl
 
 
 
 
 
-curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.youtube.com", "key": "ubt", "custom": true}' https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com/short_url
+curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.youtube.com", "key": "ubt", "custom": true}' https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com/shorturl
