@@ -61,7 +61,7 @@ jobs:
         echo "entity: ${{ inputs.entity }}, action: ${{ inputs.action }}"
         if [[ "${{ inputs.entity }}" != "nothing" && "${{ inputs.action }}" != "nothing" ]]; then
           if [[ "${{ inputs.entity }}" == "all" ]]; then
-            for e in customer campaign organization short_url; do
+            for e in customer campaign organization shorturl; do
               if [[ "${{ inputs.action }}" == "all" ]]; then
                 for a in create list retrieve update delete; do
                   targets+="aws/${e}/${a} "

@@ -21,11 +21,11 @@ LAMBDA_TARGETS = \
 	aws/organization/retrieve \
 	aws/organization/update \
 	aws/redirect \
-	aws/short_url/create \
-	aws/short_url/delete \
-	aws/short_url/list \
-	aws/short_url/retrieve \
-	aws/short_url/update
+	aws/shorturl/create \
+	aws/shorturl/delete \
+	aws/shorturl/list \
+	aws/shorturl/retrieve \
+	aws/shorturl/update
 
 SUBMODULES = \
 	shared \
