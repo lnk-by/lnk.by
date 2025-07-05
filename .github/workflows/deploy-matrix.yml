@@ -168,7 +168,7 @@ jobs:
     strategy:
       matrix:
         lambda_name: ${{ fromJson(needs.deploy-matrix.outputs.cors_lambda_names) }}
-      max-parallel: 5
+      max-parallel: 3
     uses: ./.github/workflows/deploy-one-lambda.yml
     with:
       lambda_name: ${{ matrix.lambda_name }}
