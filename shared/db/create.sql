@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS campaign (
 	status valid_statuses
 );
 
-CREATE TABLE IF NOT EXISTS short_url (
+CREATE TABLE IF NOT EXISTS shorturl (
 	key VARCHAR(32) PRIMARY KEY,
 	is_custom BOOLEAN DEFAULT FALSE,
 	target VARCHAR(2048) NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS short_url (
 );
 
 CREATE INDEX idx_campaign_customer ON campaign(customer_id);
-CREATE INDEX idx_shorturl_customer ON short_url(customer_id);
+CREATE INDEX idx_shorturl_customer ON shorturl(customer_id);
 CREATE INDEX idx_campaign_org ON campaign(organization_id);
-CREATE INDEX idx_shorturl_campaign ON short_url(campaign_id);
+CREATE INDEX idx_shorturl_campaign ON shorturl(campaign_id);
 
