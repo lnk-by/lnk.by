@@ -126,7 +126,7 @@ jobs:
         if [[ "$action" == "redirect" ]]; then
           route=$path
         else
-          route=$(dirname $path)
+          route=$(dirname $path)s
         fi
         echo "action=$action" >> "$GITHUB_ENV"
         echo "route=$route" >> "$GITHUB_ENV"
