@@ -11,19 +11,19 @@ import (
 
 type ShortURL struct {
 	Key        string       `json:"key"`
-	Custom     bool         `json:"custom"`
 	Target     string       `json:"target"`
 	CampaignID string       `json:"campaignId"`
 	CustomerID string       `json:"customerId"`
 	Status     utils.Status `json:"status"`
+	custom     bool
 }
 
 func (u *ShortURL) FieldsPtrs() []any {
-	return []any{&u.Key, &u.Custom, &u.Target, &u.CampaignID, &u.CustomerID, &u.Status}
+	return []any{&u.Key, &u.custom, &u.Target, &u.CampaignID, &u.CustomerID, &u.Status}
 }
 
 func (u *ShortURL) FieldsVals() []any {
-	return []any{u.Key, u.Custom, u.Target, u.CampaignID, u.CustomerID, u.Status}
+	return []any{u.Key, u.custom, u.Target, u.CampaignID, u.CustomerID, u.Status}
 }
 
 var generator *service.Generator
@@ -42,20 +42,17 @@ func (u *ShortURL) WithId(key string) {
 }
 
 func (u *ShortURL) Validate() error {
-	switch {
-	case u.Target == "":
+	u.custom = u.Key != ""
+
+	if u.Target == "" {
 		return errors.New("target is required")
-	case u.Custom && u.Key == "":
-		return errors.New("custom short URL requires key")
-	case !u.Custom && u.Key != "":
-		return errors.New("short URL should not have a key")
-	default:
-		return nil
 	}
+
+	return nil
 }
 
 func (u *ShortURL) Generate() {
-	if !u.Custom {
+	if !u.custom {
 		u.Key = generator.NextBase62ID()
 	}
 
@@ -65,7 +62,7 @@ func (u *ShortURL) Generate() {
 }
 
 func (u *ShortURL) MaxAttempts() int {
-	if u.Custom {
+	if u.custom {
 		return 1
 	}
 

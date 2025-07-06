@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shorten URL</title>
+  <link rel="stylesheet" href="test.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Make Links Short Again</h1>
+    <form id="shortenUrlForm">
+      <select id="apiSelector">
+        <option value="http://localhost:8080">localhost</option>
+        <option value="https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com">prod</option>
+        <option value="https://4l44leoua1.execute-api.us-east-1.amazonaws.com">dev</option>
+      </select>
+      <label>Enter your long URL you want to make short</label>
+      <input type="text" id="urlInput" placeholder="https://example.com/my-long-url-to-be-shorten" required />
+      <input type="text" id="urlKey" placeholder="enter key for custom mapping"/>
+      <button type="submit">Shorten</button>
+    </form>
+    <a id="resultLink" href="#" target="_blank">Link will appear here</a>
+    <button id="copyButton" title="Copy to clipboard" class="copy-btn" style="display: none">📋</button>
+    <p id="resultLabel"></p>
+  </div>
+
+  <script>
+    const urlInput = document.getElementById("urlInput");
+    const resultLabel = document.getElementById("resultLabel");
+
+    document.getElementById("shortenUrlForm").addEventListener("submit", async (e) => {
+      resultLabel.textContent = ""
+      const apiEndpoint = apiSelector.value
+      e.preventDefault();
+
+      const url = urlInput.value.trim()
+      // validate url
+      try {
+        new URL(url);
+      } catch (err) {
+        resultLabel.textContent = "Error: " + err.message;
+        return;
+      }
+
+      try {
+        const shortUrlEndpoint = apiEndpoint + "/shorturls"
+        const response = await fetch(shortUrlEndpoint, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ target: url, key: urlKey.value.trim() })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server responded with ${response.status}`);
+        }
+        const data = await response.json();
+        if (!data.key) {
+          throw new Error("Failure: key is empty!");
+        }
+        const resultLink = document.getElementById("resultLink");
+        resultLink.href = apiEndpoint + "/redirect/" + data.key;
+        resultLink.textContent = resultLink.href;
+        copyButton.style.display = "inline-block";
+      } catch (err) {
+        resultLabel.textContent = "Error: " + err.message + " " + apiEndpoint;
+      }
+    });
+
+    const resultLink = document.getElementById("resultLink");
+    const copyButton = document.getElementById("copyButton");
+
+    copyButton.addEventListener("click", () => {
+      const linkToCopy = resultLink.href;
+      
+      navigator.clipboard.writeText(linkToCopy)
+        .then(() => {
+          console.log("Copied to clipboard:", linkToCopy);
+          copyButton.textContent = "✅";
+          setTimeout(() => {
+            copyButton.textContent = "📋";
+          }, 1500);
+        })
+        .catch(err => {
+          console.error("Failed to copy:", err);
+        });
+    });
+
+  </script>
+</body>
+</html>
