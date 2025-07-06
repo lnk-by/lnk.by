@@ -21,6 +21,7 @@
       <button type="submit">Shorten</button>
     </form>
     <a id="resultLink" href="#" target="_blank">Link will appear here</a>
+    <button id="copyButton" title="Copy to clipboard" class="copy-btn" style="display: none">📋</button>
     <p id="resultLabel"></p>
   </div>
 
@@ -60,10 +61,31 @@
         const resultLink = document.getElementById("resultLink");
         resultLink.href = apiEndpoint + "/redirect/" + data.key;
         resultLink.textContent = resultLink.href;
+        copyButton.style.display = "inline-block";
       } catch (err) {
         resultLabel.textContent = "Error: " + err.message + " " + apiEndpoint;
       }
     });
+
+    const resultLink = document.getElementById("resultLink");
+    const copyButton = document.getElementById("copyButton");
+
+    copyButton.addEventListener("click", () => {
+      const linkToCopy = resultLink.href;
+      
+      navigator.clipboard.writeText(linkToCopy)
+        .then(() => {
+          console.log("Copied to clipboard:", linkToCopy);
+          copyButton.textContent = "✅";
+          setTimeout(() => {
+            copyButton.textContent = "📋";
+          }, 1500);
+        })
+        .catch(err => {
+          console.error("Failed to copy:", err);
+        });
+    });
+
   </script>
 </body>
 </html>
