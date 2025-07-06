@@ -10,18 +10,14 @@
   <div class="container">
     <h1>Make Links Short Again</h1>
     <form id="shortenUrlForm">
-    <select id="apiSelector">
-      <option value="http://localhost:8080">localhost</option>
-      <option value="https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com">prod</option>
-      <option value="https://4l44leoua1.execute-api.us-east-1.amazonaws.com">dev</option>
-    </select>      
+      <select id="apiSelector">
+        <option value="http://localhost:8080">localhost</option>
+        <option value="https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com">prod</option>
+        <option value="https://4l44leoua1.execute-api.us-east-1.amazonaws.com">dev</option>
+      </select>
       <label>Enter your long URL you want to make short</label>
       <input type="text" id="urlInput" placeholder="https://example.com/my-long-url-to-be-shorten" required />
       <input type="text" id="urlKey" placeholder="enter key for custom mapping"/>
-      <label>
-        <input type="checkbox" id="urlCustom" />
-        Custom
-      </label>
       <button type="submit">Shorten</button>
     </form>
     <a id="resultLink" href="#" target="_blank">Link will appear here</a>
@@ -51,7 +47,7 @@
         const response = await fetch(shortUrlEndpoint, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ target: url, key: urlKey.value.trim(), custom: document.getElementById("urlCustom").checked})
+          body: JSON.stringify({ target: url, key: urlKey.value.trim() })
         });
 
         if (!response.ok) {
@@ -63,7 +59,7 @@
         }
         const resultLink = document.getElementById("resultLink");
         resultLink.href = apiEndpoint + "/redirect/" + data.key;
-        resultLink.textContent = data.key;
+        resultLink.textContent = resultLink.href;
       } catch (err) {
         resultLabel.textContent = "Error: " + err.message + " " + apiEndpoint;
       }
