@@ -23,11 +23,11 @@ on:
           - aws/campaign/update
           - aws/campaign/delete
           - aws/campaign/list
-          - aws/short_url/create
-          - aws/short_url/retrieve
-          - aws/short_url/update
-          - aws/short_url/delete
-          - aws/short_url/list
+          - aws/shorturl/create
+          - aws/shorturl/retrieve
+          - aws/shorturl/update
+          - aws/shorturl/delete
+          - aws/shorturl/list
           - aws/redirect
           - aws/cors
 
@@ -126,7 +126,7 @@ jobs:
         if [[ "$action" == "redirect" ]]; then
           route=$path
         else
-          route=$(dirname $path)
+          route=$(dirname $path)s
         fi
         echo "action=$action" >> "$GITHUB_ENV"
         echo "route=$route" >> "$GITHUB_ENV"
