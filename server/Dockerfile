@@ -1,4 +1,3 @@
-
 FROM golang:1.24
 
 WORKDIR /app
@@ -6,7 +5,7 @@ WORKDIR /app
 COPY . .
 
 RUN go mod download
-RUN go build -o server ./cmd/server
+RUN go build -o /bin/server ./server
 
 EXPOSE 8080
 

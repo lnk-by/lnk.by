@@ -12,14 +12,16 @@ import (
 
 var pool *pgxpool.Pool
 
-func InitFromEnvironement(ctx context.Context) error {
+func InitFromEnvironment(ctx context.Context) error {
 	slog.Info("Connecting to database ", "url", os.Getenv("DB_URL"), "user", os.Getenv("DB_USER"), "password", os.Getenv("DB_PASSWORD"))
-	if err := Init(context.Background(), os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
+	if err := Init(ctx, os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		return err
 	}
 	return nil
 }
+
+const maxRetries = 10
 
 func Init(ctx context.Context, dbUrl string, user string, password string) error {
 	config, err := pgxpool.ParseConfig(dbUrl)
@@ -40,9 +42,27 @@ func Init(ctx context.Context, dbUrl string, user string, password string) error
 		return fmt.Errorf("failed to build DB pool: %w", err)
 	}
 
-	if err := pool.Ping(ctx); err != nil {
+	for retries := 0; retries < maxRetries; retries++ {
+		if err = pool.Ping(ctx); err != nil {
+			slog.Info("Waiting for DB pool", "error", err)
+			time.Sleep(time.Second)
+			continue
+		}
+		break
+	}
+
+	if err != nil {
 		return fmt.Errorf("failed to ping DB pool: %w", err)
 	}
+
+	//for i := 0; i < 10; i++ {
+	//	err := db.Ping()
+	//	if err == nil {
+	//		break
+	//	}
+	//	log.Printf("Waiting for DB (%d)...", i)
+	//	time.Sleep(time.Second * time.Duration(i+1))
+	//}
 
 	return nil
 }

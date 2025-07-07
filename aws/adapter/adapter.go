@@ -76,7 +76,7 @@ func badRequestResponse(err error) events.APIGatewayV2HTTPResponse {
 
 func LambdaMain(handler interface{}) {
 	ctx := context.Background()
-	if err := db.InitFromEnvironement(ctx); err != nil {
+	if err := db.InitFromEnvironment(ctx); err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}

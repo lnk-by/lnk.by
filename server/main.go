@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -22,17 +23,16 @@ import (
 )
 
 const (
-	contentTypeHeader   = "Content-Type"
-	contentTypeJSON     = "application/json"
+	accessControlAllowOriginHeader  = "Access-Control-Allow-Origin"
+	accessControlAllowMethodsHeader = "Access-Control-Allow-Methods"
+	accessControlAllowHeadersHeader = "Access-Control-Allow-Headers"
+	//accessControlExposeHeadersHeader = "Access-Control-Expose-Headers"
 	authorizationHeader = "Authorization"
-
-	accessControlAllowOrigin   = "Access-Control-Allow-Origin"
-	accessControlAllowMethods  = "Access-Control-Allow-Methods"
-	accessControlAllowHeaders  = "Access-Control-Allow-Headers"
-	accessControlExposeHeaders = "Access-Control-Expose-Headers"
-
-	any = "*"
+	contentTypeHeader   = "Content-Type"
 )
+
+const contentTypeJSON = "application/json"
+const allowAnyOrigin = "*"
 
 func initDbConnection() error {
 	if err := godotenv.Load(); err != nil {
@@ -43,7 +43,7 @@ func initDbConnection() error {
 		slog.Info(".env file not found, continuing...")
 	}
 
-	if err := db.InitFromEnvironement(context.Background()); err != nil {
+	if err := db.InitFromEnvironment(context.Background()); err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		return err
 	}
@@ -101,23 +101,20 @@ func deleteEntity[T service.FieldsPtrsAware](c *gin.Context, sql service.DeleteS
 
 func respondWithJSON(c *gin.Context, statusCode int, jsonStr string) {
 	c.Header(contentTypeHeader, contentTypeJSON)
-	c.Header(accessControlAllowOrigin, any)
+	c.Header(accessControlAllowOriginHeader, allowAnyOrigin)
 	c.String(statusCode, jsonStr)
 }
 
-func CORSMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header(accessControlAllowOrigin, any)
-		c.Header(accessControlAllowMethods, "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header(accessControlAllowHeaders, "Authorization, Content-Type")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
+func corsMiddleware(c *gin.Context) {
+	if c.Request.Method != "OPTIONS" {
 		c.Next()
+		return
 	}
+
+	c.Header(accessControlAllowOriginHeader, allowAnyOrigin)
+	c.Header(accessControlAllowMethodsHeader, strings.Join([]string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}, ","))
+	c.Header(accessControlAllowHeadersHeader, strings.Join([]string{authorizationHeader, contentTypeHeader}, ","))
+	c.AbortWithStatus(http.StatusNoContent)
 }
 
 func jsonErrorHandler(c *gin.Context) {
@@ -144,9 +141,9 @@ func redirect(c *gin.Context) {
 	c.Redirect(http.StatusFound, url.Target)
 }
 
-func main() {
+func run() error {
 	router := gin.Default()
-	router.Use(gin.Recovery(), jsonErrorHandler, CORSMiddleware())
+	router.Use(gin.Recovery(), jsonErrorHandler, corsMiddleware)
 	router.RemoveExtraSlash = true
 
 	router.POST("/customers", func(c *gin.Context) { create(c, customer.CreateSQL) })
@@ -176,12 +173,19 @@ func main() {
 	router.GET("/go/:id", redirect)
 
 	if err := initDbConnection(); err != nil {
-		slog.Error("Failed to start server", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to init DB connnection: %w", err)
 	}
 
-	if err := router.Run("localhost:8080"); err != nil {
-		slog.Error("Failed to start server", "error", err.Error())
+	if err := router.Run(":8080"); err != nil {
+		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		slog.Error("Failed to run server", "error", err.Error())
 		os.Exit(1)
 	}
 }
