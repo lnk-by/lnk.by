@@ -55,15 +55,6 @@ func Init(ctx context.Context, dbUrl string, user string, password string) error
 		return fmt.Errorf("failed to ping DB pool: %w", err)
 	}
 
-	//for i := 0; i < 10; i++ {
-	//	err := db.Ping()
-	//	if err == nil {
-	//		break
-	//	}
-	//	log.Printf("Waiting for DB (%d)...", i)
-	//	time.Sleep(time.Second * time.Duration(i+1))
-	//}
-
 	return nil
 }
 

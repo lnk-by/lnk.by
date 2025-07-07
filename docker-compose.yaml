@@ -22,7 +22,6 @@ services:
     depends_on:
       - postgres
     environment:
-#      POSTGRES_DSN: postgres://postgres:5432/postgres?sslmode=disable
       DB_URL: postgres://postgres:5432/postgres?sslmode=disable
       DB_USER: postgres
       DB_PASSWORD: postgres
