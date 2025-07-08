@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -53,6 +54,33 @@ func Init(ctx context.Context, dbUrl string, user string, password string) error
 
 	if err != nil {
 		return fmt.Errorf("failed to ping DB pool: %w", err)
+	}
+
+	for _, sql := range []string{
+		//dropStatusTypeSQL,
+		//createStatusTypeSQL,
+
+		createOrganizationTableSQL,
+		createCustomerTableSQL,
+		createCampaignTableSQL,
+		createShortURLTableSQL,
+
+		createCustomerByOrganizationIndexSQL,
+		createCampaignByCustomerIndexSQL,
+		createCampaignByOrganizationIndexSQL,
+		createShortURLByCampaignIndexSQL,
+		createShortURLByCustomerIndexSQL,
+	} {
+		if _, err := pool.Exec(ctx, sql); err != nil {
+			return fmt.Errorf("failed to execute SQL: %w", err)
+		}
+
+		sqlMessage := strings.Split(sql, "\n")[0]
+		if len(sql) > len(sqlMessage) {
+			sqlMessage = sqlMessage + "..."
+		}
+
+		slog.Info("Successfully executed", "sql", sqlMessage)
 	}
 
 	return nil
