@@ -16,13 +16,12 @@ var pool *pgxpool.Pool
 func InitFromEnvironment(ctx context.Context) error {
 	slog.Info("Connecting to database ", "url", os.Getenv("DB_URL"), "user", os.Getenv("DB_USER"), "password", os.Getenv("DB_PASSWORD"))
 	if err := Init(ctx, os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
-		slog.Error("Failed to connect to database", "error", err)
-		return err
+		return fmt.Errorf("failed to connect to DB: %w", err)
 	}
 	return nil
 }
 
-const maxRetries = 10
+const maxPingRetries = 10
 
 func Init(ctx context.Context, dbUrl string, user string, password string) error {
 	config, err := pgxpool.ParseConfig(dbUrl)
@@ -43,7 +42,8 @@ func Init(ctx context.Context, dbUrl string, user string, password string) error
 		return fmt.Errorf("failed to build DB pool: %w", err)
 	}
 
-	for retries := 0; retries < maxRetries; retries++ {
+	// retry pings if Postgres is not ready yet -- can happen under docker compose
+	for retries := 0; retries < maxPingRetries; retries++ {
 		if err = pool.Ping(ctx); err != nil {
 			slog.Info("Waiting for DB pool", "error", err)
 			time.Sleep(time.Second)
