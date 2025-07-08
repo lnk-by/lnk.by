@@ -25,6 +25,7 @@ services:
       DB_URL: postgres://postgres:5432/postgres?sslmode=disable
       DB_USER: postgres
       DB_PASSWORD: postgres
+      INIT_DB: true
 
 volumes:
   postgres_data:

@@ -56,33 +56,6 @@ func Init(ctx context.Context, dbUrl string, user string, password string) error
 		return fmt.Errorf("failed to ping DB pool: %w", err)
 	}
 
-	for _, sql := range []string{
-		//dropStatusTypeSQL,
-		//createStatusTypeSQL,
-
-		createOrganizationTableSQL,
-		createCustomerTableSQL,
-		createCampaignTableSQL,
-		createShortURLTableSQL,
-
-		createCustomerByOrganizationIndexSQL,
-		createCampaignByCustomerIndexSQL,
-		createCampaignByOrganizationIndexSQL,
-		createShortURLByCampaignIndexSQL,
-		createShortURLByCustomerIndexSQL,
-	} {
-		if _, err := pool.Exec(ctx, sql); err != nil {
-			return fmt.Errorf("failed to execute SQL: %w", err)
-		}
-
-		sqlMessage := strings.Split(sql, "\n")[0]
-		if len(sql) > len(sqlMessage) {
-			sqlMessage = sqlMessage + "..."
-		}
-
-		slog.Info("Successfully executed", "sql", sqlMessage)
-	}
-
 	return nil
 }
 
@@ -97,4 +70,32 @@ func Get(ctx context.Context) (*pgxpool.Conn, error) {
 	//}
 
 	return conn, nil
+}
+
+func RunScript(ctx context.Context, path string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read SQL file: %w", err)
+	}
+	queries := strings.Split(string(content), ";")
+
+	conn, err := Get(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get DB connection: %w", err)
+	}
+
+	for _, q := range queries {
+		q = strings.TrimSpace(q)
+		if q == "" || strings.HasPrefix(q, "--") {
+			continue
+		}
+
+		if _, err := conn.Exec(ctx, q); err != nil {
+			return fmt.Errorf("failed to execute query: %w\nSQL: %s", err, q)
+		}
+
+		slog.Info("Executed", "sql", q)
+	}
+
+	return nil
 }

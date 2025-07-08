@@ -37,16 +37,23 @@ const allowAnyOrigin = "*"
 func initDbConnection() error {
 	if err := godotenv.Load(); err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			slog.Error("Failed to load .env", "error", err)
-			return err
+			return fmt.Errorf("failed to load .env: %w", err)
 		}
 		slog.Info(".env file not found, continuing...")
 	}
 
-	if err := db.InitFromEnvironment(context.Background()); err != nil {
-		slog.Error("Failed to connect to database", "error", err)
-		return err
+	ctx := context.Background()
+
+	if err := db.InitFromEnvironment(ctx); err != nil {
+		return fmt.Errorf("failed to init DB: %w", err)
 	}
+
+	if strings.ToLower(os.Getenv("INIT_DB")) != "" {
+		if err := db.RunScript(ctx, "shared/db/create.sql"); err != nil {
+			return fmt.Errorf("failed to run SQL script: %w", err)
+		}
+	}
+
 	return nil
 }
 
