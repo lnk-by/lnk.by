@@ -47,8 +47,9 @@ func initDbConnection() error {
 		return fmt.Errorf("failed to init DB: %w", err)
 	}
 
-	if strings.ToLower(os.Getenv("INIT_DB")) != "true" {
-		if err := db.RunScript(ctx, "shared/db/create.sql"); err != nil {
+	initScript := os.Getenv("DB_INIT_SCRIPT")
+	if initScript != "" {
+		if err := db.RunScript(ctx, initScript); err != nil {
 			return fmt.Errorf("failed to run SQL script: %w", err)
 		}
 	}
