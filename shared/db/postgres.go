@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -12,14 +13,15 @@ import (
 
 var pool *pgxpool.Pool
 
-func InitFromEnvironement(ctx context.Context) error {
+func InitFromEnvironment(ctx context.Context) error {
 	slog.Info("Connecting to database ", "url", os.Getenv("DB_URL"), "user", os.Getenv("DB_USER"), "password", os.Getenv("DB_PASSWORD"))
-	if err := Init(context.Background(), os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
-		slog.Error("Failed to connect to database", "error", err)
-		return err
+	if err := Init(ctx, os.Getenv("DB_URL"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD")); err != nil {
+		return fmt.Errorf("failed to connect to DB: %w", err)
 	}
 	return nil
 }
+
+const maxPingRetries = 10
 
 func Init(ctx context.Context, dbUrl string, user string, password string) error {
 	config, err := pgxpool.ParseConfig(dbUrl)
@@ -40,7 +42,17 @@ func Init(ctx context.Context, dbUrl string, user string, password string) error
 		return fmt.Errorf("failed to build DB pool: %w", err)
 	}
 
-	if err := pool.Ping(ctx); err != nil {
+	// retry pings if Postgres is not ready yet -- can happen under docker compose
+	for retries := 0; retries < maxPingRetries; retries++ {
+		if err = pool.Ping(ctx); err != nil {
+			slog.Info("Waiting for DB pool", "error", err)
+			time.Sleep(time.Second)
+			continue
+		}
+		break
+	}
+
+	if err != nil {
 		return fmt.Errorf("failed to ping DB pool: %w", err)
 	}
 
@@ -58,4 +70,32 @@ func Get(ctx context.Context) (*pgxpool.Conn, error) {
 	//}
 
 	return conn, nil
+}
+
+func RunScript(ctx context.Context, path string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read SQL file: %w", err)
+	}
+	queries := strings.Split(string(content), ";")
+
+	conn, err := Get(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get DB connection: %w", err)
+	}
+
+	for _, q := range queries {
+		q = strings.TrimSpace(q)
+		if q == "" || strings.HasPrefix(q, "--") {
+			continue
+		}
+
+		if _, err := conn.Exec(ctx, q); err != nil {
+			return fmt.Errorf("failed to execute query: %w\nSQL: %s", err, q)
+		}
+
+		slog.Info("Executed", "sql", q)
+	}
+
+	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -22,31 +23,37 @@ import (
 )
 
 const (
-	contentTypeHeader   = "Content-Type"
-	contentTypeJSON     = "application/json"
-	authorizationHeader = "Authorization"
-
-	accessControlAllowOrigin   = "Access-Control-Allow-Origin"
-	accessControlAllowMethods  = "Access-Control-Allow-Methods"
-	accessControlAllowHeaders  = "Access-Control-Allow-Headers"
-	accessControlExposeHeaders = "Access-Control-Expose-Headers"
-
-	any = "*"
+	accessControlAllowOriginHeader  = "Access-Control-Allow-Origin"
+	accessControlAllowMethodsHeader = "Access-Control-Allow-Methods"
+	accessControlAllowHeadersHeader = "Access-Control-Allow-Headers"
+	authorizationHeader             = "Authorization"
+	contentTypeHeader               = "Content-Type"
 )
+
+const contentTypeJSON = "application/json"
+const allowAnyOrigin = "*"
 
 func initDbConnection() error {
 	if err := godotenv.Load(); err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			slog.Error("Failed to load .env", "error", err)
-			return err
+			return fmt.Errorf("failed to load .env: %w", err)
 		}
 		slog.Info(".env file not found, continuing...")
 	}
 
-	if err := db.InitFromEnvironement(context.Background()); err != nil {
-		slog.Error("Failed to connect to database", "error", err)
-		return err
+	ctx := context.Background()
+
+	if err := db.InitFromEnvironment(ctx); err != nil {
+		return fmt.Errorf("failed to init DB: %w", err)
 	}
+
+	initScript := os.Getenv("DB_INIT_SCRIPT")
+	if initScript != "" {
+		if err := db.RunScript(ctx, initScript); err != nil {
+			return fmt.Errorf("failed to run SQL script: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -101,23 +108,25 @@ func deleteEntity[T service.FieldsPtrsAware](c *gin.Context, sql service.DeleteS
 
 func respondWithJSON(c *gin.Context, statusCode int, jsonStr string) {
 	c.Header(contentTypeHeader, contentTypeJSON)
-	c.Header(accessControlAllowOrigin, any)
+	c.Header(accessControlAllowOriginHeader, allowAnyOrigin)
 	c.String(statusCode, jsonStr)
 }
 
-func CORSMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header(accessControlAllowOrigin, any)
-		c.Header(accessControlAllowMethods, "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header(accessControlAllowHeaders, "Authorization, Content-Type")
+var (
+	allowedMethods = strings.Join([]string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}, ",")
+	allowedHeaders = strings.Join([]string{authorizationHeader, contentTypeHeader}, ",")
+)
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
+func corsMiddleware(c *gin.Context) {
+	if c.Request.Method != "OPTIONS" {
 		c.Next()
+		return
 	}
+
+	c.Header(accessControlAllowOriginHeader, allowAnyOrigin)
+	c.Header(accessControlAllowMethodsHeader, allowedMethods)
+	c.Header(accessControlAllowHeadersHeader, allowedHeaders)
+	c.AbortWithStatus(http.StatusNoContent)
 }
 
 func jsonErrorHandler(c *gin.Context) {
@@ -144,9 +153,9 @@ func redirect(c *gin.Context) {
 	c.Redirect(http.StatusFound, url.Target)
 }
 
-func main() {
+func run() error {
 	router := gin.Default()
-	router.Use(gin.Recovery(), jsonErrorHandler, CORSMiddleware())
+	router.Use(gin.Recovery(), jsonErrorHandler, corsMiddleware)
 	router.RemoveExtraSlash = true
 
 	router.POST("/customers", func(c *gin.Context) { create(c, customer.CreateSQL) })
@@ -176,12 +185,19 @@ func main() {
 	router.GET("/go/:id", redirect)
 
 	if err := initDbConnection(); err != nil {
-		slog.Error("Failed to start server", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to init DB connnection: %w", err)
 	}
 
-	if err := router.Run("localhost:8080"); err != nil {
-		slog.Error("Failed to start server", "error", err.Error())
+	if err := router.Run(":8080"); err != nil {
+		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		slog.Error("Failed to run server", "error", err.Error())
 		os.Exit(1)
 	}
 }
