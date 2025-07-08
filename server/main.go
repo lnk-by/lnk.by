@@ -26,9 +26,8 @@ const (
 	accessControlAllowOriginHeader  = "Access-Control-Allow-Origin"
 	accessControlAllowMethodsHeader = "Access-Control-Allow-Methods"
 	accessControlAllowHeadersHeader = "Access-Control-Allow-Headers"
-	//accessControlExposeHeadersHeader = "Access-Control-Expose-Headers"
-	authorizationHeader = "Authorization"
-	contentTypeHeader   = "Content-Type"
+	authorizationHeader             = "Authorization"
+	contentTypeHeader               = "Content-Type"
 )
 
 const contentTypeJSON = "application/json"
@@ -48,7 +47,7 @@ func initDbConnection() error {
 		return fmt.Errorf("failed to init DB: %w", err)
 	}
 
-	if strings.ToLower(os.Getenv("INIT_DB")) != "" {
+	if strings.ToLower(os.Getenv("INIT_DB")) != "true" {
 		if err := db.RunScript(ctx, "shared/db/create.sql"); err != nil {
 			return fmt.Errorf("failed to run SQL script: %w", err)
 		}
@@ -112,6 +111,11 @@ func respondWithJSON(c *gin.Context, statusCode int, jsonStr string) {
 	c.String(statusCode, jsonStr)
 }
 
+var (
+	allowedMethods = strings.Join([]string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}, ",")
+	allowedHeaders = strings.Join([]string{authorizationHeader, contentTypeHeader}, ",")
+)
+
 func corsMiddleware(c *gin.Context) {
 	if c.Request.Method != "OPTIONS" {
 		c.Next()
@@ -119,8 +123,8 @@ func corsMiddleware(c *gin.Context) {
 	}
 
 	c.Header(accessControlAllowOriginHeader, allowAnyOrigin)
-	c.Header(accessControlAllowMethodsHeader, strings.Join([]string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}, ","))
-	c.Header(accessControlAllowHeadersHeader, strings.Join([]string{authorizationHeader, contentTypeHeader}, ","))
+	c.Header(accessControlAllowMethodsHeader, allowedMethods)
+	c.Header(accessControlAllowHeadersHeader, allowedHeaders)
 	c.AbortWithStatus(http.StatusNoContent)
 }
 
