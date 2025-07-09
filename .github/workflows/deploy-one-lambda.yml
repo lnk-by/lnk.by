@@ -94,7 +94,7 @@ jobs:
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       AWS_API_ID: ${{ vars.AWS_API_ID }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
-
+      AWS_AUTHORIZER_ID: ${{ vars.AWS_AUTHORIZER_ID }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -124,9 +124,11 @@ jobs:
         path=$(echo "${{ inputs.lambda_name }}" | sed 's/^aws//')
         action=$(basename "$path")
         if [[ "$action" == "redirect" ]]; then
-          route=$path
+          route="/go"
+          authorize=false
         else
           route=$(dirname $path)s
+          authorize=true
         fi
         echo "action=$action" >> "$GITHUB_ENV"
         echo "route=$route" >> "$GITHUB_ENV"
@@ -165,9 +167,11 @@ jobs:
 
         if [[ "${{ inputs.manage }}" == "CORS" || "$lambda_path" == "aws/cors" ]]; then
           method="OPTIONS"
+          authorize=false
         fi
         echo "method=$method" >> "$GITHUB_ENV"
         echo "suffix=$suffix" >> "$GITHUB_ENV"
+        echo "authorize=$authorize" >> "$GITHUB_ENV"
         echo "🔧 full_route=$method $route$suffix"
 
     - name: Remove Lambda and API Gateway resources
@@ -330,13 +334,17 @@ jobs:
         existing_route=$(aws apigatewayv2 get-routes --api-id "$AWS_API_ID" --query "Items[?RouteKey=='$method $route$suffix']" --output text)
         if [[ -z "$existing_route" ]]; then
           echo "🔧 Creating API Gateway route $method $route$suffix for integration $integration_id"
-          # the same route can be share among several lambda functions that are mapped to different HTTP method, so we ignore failure of this command
+          # the same route can be shared among several lambda functions that are mapped to different HTTP method, so we ignore failure of this command
           if [[ "${{ inputs.manage }}" == "CORS" && "${{ inputs.do_build }}" == "false" ]]; then
-            echo "safely run create-route"
+            echo "🔧 safely run create-route"
             aws apigatewayv2 create-route --api-id "$AWS_API_ID" --route-key "$method $route$suffix" --target "integrations/$integration_id" || true
           else
-            echo "directly run create-route"
-            aws apigatewayv2 create-route --api-id "$AWS_API_ID" --route-key "$method $route$suffix" --target "integrations/$integration_id"
+            echo "🔧 directly run create-route"
+            route_id=$(aws apigatewayv2 create-route --api-id "$AWS_API_ID" --route-key "$method $route$suffix" --target "integrations/$integration_id" --output json | jq -r '.RouteId')
+            if [[ "$authorize" == "true" ]]; then
+              echo "🔧 route $route_id is created. Updating autorizer $AWS_AUTHORIZER_ID for this route"
+              aws apigatewayv2 update-route --api-id "$AWS_API_ID" --authorization-type JWT --authorizer-id "$AWS_AUTHORIZER_ID" --route-id "$route_id"
+            fi
           fi
         else
           echo "🔧 API Gateway route $method $route$suffix for integration $integration_id already exists"
