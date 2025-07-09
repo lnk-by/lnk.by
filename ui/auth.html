@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cognito Auth Test</title>
+    <link rel="stylesheet" href="test.css">
+</head>
+<body>
+    <div>
+    <h1>Cognito Test Interface</h1>
+    <form id="authForm">
+        <label>Email:</label>
+        <input type="text" id="email" required><br><br>
+        
+        <div id="confirmCodeFields" style="display: none;">
+            <label id="labelConfirmCodeField">Confirm code:</label><br>
+            <input type="text" id="confirmCodeField"><br><br>
+        </div>
+
+
+        <label id="labelSecretField">Password:</label>
+        <input type="password" id="secretField"><br><br>
+        
+        <button type="button" id="signupBtn">Sign Up</button>
+        <button type="button" id="confirmBtn">Confirm Code</button>
+        <button type="button" id="resendBtn">Resend Code</button>
+        <button type="button" id="loginBtn">Login</button>
+        <button type="button" id="newPasswordBtn" style="display: none;">New Password</button>
+        <button type="button" id="deleteAccountBtn" style="display: none;">Delete Account</button>
+        <br/><br/>
+        <a href="#" id="showForgotPasswordLink">Forgot password</a><br><br>
+        <br/><br/>
+        <a href="#" id="showChangePasswordLink" style="display: none;">Change password</a><br><br>
+        <div id="changePasswordFields" style="display: none;">
+            <label id="labelSecretField2">New Password:</label><br>
+            <input type="password" id="secretField2"><br><br>
+            <button type="button" id="changePasswordBtn">Change Password</button>
+        </div>
+        <a href="./shorturl.html" id="shorturlLink" style="display: none;">ShortURL</a><br><br>
+    </form>
+
+    <button id="logoutBtn" style="display:none;">Logout</button>
+    <h3 id="status"></h3>
+    </div>
+
+
+    <script>
+        const clientId = '7n2qik1p521fv5boumq4sm64pf';
+        const region = 'us-east-1';
+        const url = `https://cognito-idp.${region}.amazonaws.com/`;
+
+        let idToken = null;
+        let accessToken = null;
+
+        const emailInput = document.getElementById('email');
+        const confirmCodeField = document.getElementById('confirmCodeField');
+        const secretField = document.getElementById('secretField');
+        const secretField2 = document.getElementById('secretField2');
+        const labelSecretField = document.getElementById('labelSecretField');
+        const labelSecretField2 = document.getElementById('labelSecretField2');
+        const status = document.getElementById('status');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        document.getElementById('signupBtn').addEventListener('click', () => {
+            labelSecretField.textContent = 'Password:';
+            sendCognitoRequest('SignUp', {
+                Username: emailInput.value,
+                Password: secretField.value,
+                ClientId: clientId,
+                UserAttributes: [{ Name: 'email', Value: emailInput.value }]
+            });
+        });
+
+        document.getElementById('confirmBtn').addEventListener('click', () => {
+            labelSecretField.textContent = 'Confirmation Code:';
+            sendCognitoRequest('ConfirmSignUp', {
+                Username: emailInput.value,
+                ConfirmationCode: confirmCodeField.value,
+                ClientId: clientId
+            });
+        });
+
+        document.getElementById('resendBtn').addEventListener('click', () => {
+            labelSecretField.textContent = '(Code field ignored)';
+            sendCognitoRequest('ResendConfirmationCode', {
+                Username: emailInput.value,
+                ClientId: clientId
+            });
+        });
+
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            labelSecretField.textContent = 'Password:';
+            sendCognitoRequest('InitiateAuth', {
+                AuthFlow: 'USER_PASSWORD_AUTH',
+                AuthParameters: {
+                    USERNAME: emailInput.value,
+                    PASSWORD: secretField.value
+                },
+                ClientId: clientId
+            });
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            idToken = null;
+            accessToken = null;
+            sessionStorage.removeItem('accessToken');
+            logoutBtn.style.display = 'none';
+            status.textContent = 'Logged out.';
+            document.getElementById('showChangePasswordLink').style.display = 'none';
+            document.getElementById('changePasswordFields').style.display = 'none';            
+            document.getElementById('showForgotPasswordLink').style.display = 'inline';
+            document.getElementById('deleteAccountBtn').style.display = 'none';
+        });
+
+        document.getElementById('showChangePasswordLink').addEventListener('click', function (e) {
+            e.preventDefault();
+            changePasswordFields.style.display = 'block';
+            this.style.display = 'none';
+        });        
+
+        document.getElementById('showForgotPasswordLink').addEventListener('click', () => {
+            sendCognitoRequest('ForgotPassword', {
+                Username: emailInput.value,
+                ClientId: clientId
+            });
+        });
+
+        document.getElementById('changePasswordBtn').addEventListener('click', () => {
+            labelSecretField2.textContent = 'New Password:';
+            sendCognitoRequest('ChangePassword', {
+                AccessToken: accessToken,
+                PreviousPassword: secretField.value,
+                ProposedPassword: secretField2.value
+            });
+        });
+
+        document.getElementById('newPasswordBtn').addEventListener('click', () => {
+            labelSecretField2.textContent = 'New Password:';
+            sendCognitoRequest('ConfirmForgotPassword', {
+                ClientId: clientId,
+                Username: emailInput.value,
+                ConfirmationCode: confirmCodeField.value,
+                Password: secretField.value,
+            });
+        });
+
+
+        document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+            sendCognitoRequest('DeleteUser', {
+                AccessToken: accessToken
+            });
+        });
+        
+
+        async function sendCognitoRequest(action, payload) {
+            const targetMap = {
+                SignUp: 'AWSCognitoIdentityProviderService.SignUp',
+                ConfirmSignUp: 'AWSCognitoIdentityProviderService.ConfirmSignUp',
+                ResendConfirmationCode: 'AWSCognitoIdentityProviderService.ResendConfirmationCode',
+                InitiateAuth: 'AWSCognitoIdentityProviderService.InitiateAuth',
+                ForgotPassword: 'AWSCognitoIdentityProviderService.ForgotPassword',
+                ConfirmForgotPassword: 'AWSCognitoIdentityProviderService.ConfirmForgotPassword',
+                ChangePassword: 'AWSCognitoIdentityProviderService.ChangePassword',
+                DeleteUser: 'AWSCognitoIdentityProviderService.DeleteUser'
+            };
+            try {
+
+                const headers = {
+                    'Content-Type': 'application/x-amz-json-1.1',
+                    'X-Amz-Target': targetMap[action]
+                };
+                if (accessToken && (action === 'ChangePassword' || action == 'DeleteUser')) {
+                    headers['Authorization'] = `Bearer ${accessToken}`;
+                }
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(payload)
+                });
+
+                const data = action === 'DeleteUser' ? await res.text() : await res.json();
+
+                if (!res.ok) {
+                    console.error(`${action} error:`, data);
+                    status.textContent = `${action} failed: ${data.message || 'Unknown error'}`;
+                    return;
+                }
+
+                console.log(`${action} response:`, data);
+                if (action === 'SignUp') {                    
+                    document.getElementById('confirmCodeFields').style.display = 'inline';
+                    status.textContent = 'Please check your email for the cofirmation code, fill it and press Confirm Code button';
+                } else if (action === 'InitiateAuth' && data.AuthenticationResult) {
+                    idToken = data.AuthenticationResult.IdToken;
+                    accessToken = data.AuthenticationResult.AccessToken;
+                    sessionStorage.setItem('accessToken', accessToken);
+                    status.textContent = 'Login successful!';
+                    logoutBtn.style.display = 'inline';
+                    document.getElementById('showChangePasswordLink').style.display = 'inline';
+                    document.getElementById('showForgotPasswordLink').style.display = 'none';
+                    console.log('Tokens:', { idToken, accessToken });                    
+                    document.getElementById('deleteAccountBtn').style.display = 'inline';
+                    document.getElementById('shorturlLink').style.display = 'inline';
+                } else if (action === 'ChangePassword') {
+                    console.log('Password changed:', data);
+                    status.textContent = 'Password changed successfully.';
+                    // Reset fields and hide change password section again
+                    document.getElementById('secretField2').value = '';
+                    changePasswordFields.style.display = 'none';
+                    changePasswordLink.style.display = 'inline';
+                } else if (action == 'ForgotPassword') {
+                    status.textContent = 'Please check your email for the cofirmation code, fill it and your new password and press New Password button';
+                    document.getElementById('newPasswordBtn').style.display = 'inline';
+                    document.getElementById('confirmCodeFields').style.display = 'inline';
+                } else {
+                    status.textContent = `${action} successful.`;
+                }
+            } catch (err) {
+                console.error('Unexpected error:', err);
+                status.textContent = 'Unexpected error occurred.';
+            }
+        }
+
+    </script>
+</body>
+</html>
