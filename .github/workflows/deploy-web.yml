@@ -1,0 +1,52 @@
+name: Deploy to S3
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Select operation: Deploy or Remove"
+        required: true
+        type: choice
+        options:
+          - 🚀 Deploy
+          - 🗑️ Remove
+  workflow_call:
+    inputs:
+      operation:
+        description: "Deploy or Remove"
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: 'PRODUCTION'
+    env:
+      AWS_REGION: us-east-1
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Deploy files to S3
+        if: ${{ endsWith(inputs.operation, 'Deploy') }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          aws s3 sync ./ui s3://$S3_BUCKET/ui --delete --region "$AWS_REGION"
+
+      - name: Remove files from S3
+        if: ${{ endsWith(inputs.operation, 'Remove') }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          aws s3 rm s3://$S3_BUCKET/ui --recursive --region "$AWS_REGION"

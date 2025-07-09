@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       entity:
-        description: "Select entity to deploy"
+        description: "🧩 Select entity to deploy"
         required: true
         type: choice
         options:
@@ -16,7 +16,7 @@ on:
           - all
 
       action:
-        description: "Select CRUD action to deploy"
+        description: "⚙️ Select CRUD action to deploy"
         required: true
         type: choice
         options:
@@ -34,15 +34,21 @@ on:
         type: boolean
         default: false
 
+      deploy_web:
+        description: "🌐 Manage web enabled static content"
+        required: false
+        type: boolean
+        default: false
+
       operation:
-        description: "Select operation: Deploy or Remove"
+        description: "Select operation"
         required: true
         type: choice
         options:
           - 🚀 Deploy
           - 🗑️ Remove
 
-run-name: "${{ github.event.inputs.operation }} selected Lambdas: 🗂️${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}"
+run-name: "${{ github.event.inputs.operation }} selected Lambdas: 🗂️${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}, 	🌐:${{ github.event.inputs.deploy_web }}"
 
 jobs:
   deploy-matrix:
@@ -82,27 +88,37 @@ jobs:
         fi
         cors_targets=$targets
 
-        targets+="aws/cors "
-        cors_targets=$targets
+        if [[ "$targets" != "" ]]; then
+          targets+="aws/cors "
+          cors_targets=$targets
+        fi
         if [[ "${{ inputs.deploy_redirect }}" == "true" ]]; then
           targets+="aws/redirect"
         fi
 
         echo "cors_targets=$cors_targets"
         echo "targets=$targets"
-        if [[ "$targets" == "" ]]; then
-          echo "❌ No targets specified"
+        deploy_web="${{ github.event.inputs.deploy_web }}"
+        if [[ -z "$targets" && "$deploy_web" != "true" ]]; then
+          echo "❌ Neither lambdas nor web content is specified"
           exit 1
         fi
-
         # Convert array to JSON array with jq, remove whitespace
-        cors_json=`echo $cors_targets | sed 's/ $//' | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/'`
-        json=`echo $targets | sed 's/ $//' | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/'`
+        if [ -z "$cors_targets" ]; then
+            json='[]'
+        else
+          cors_json=`echo $cors_targets | sed 's/ $//' | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/'`
+        fi
+        if [ -z "$targets" ]; then
+            json='[]'
+        else
+          json=`echo $targets | sed 's/ $//' | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/'`
+        fi
+
         echo "cors_json=$cors_json"
         echo "json=$json"
         echo "cors_targets=$cors_targets"
         echo "targets=$targets"
-
 
         # Write clean output without leading spaces
         echo "cors_lambda_names=$cors_json" >> $GITHUB_OUTPUT
@@ -144,6 +160,7 @@ jobs:
 
   call-deploy-lambda:
     needs: deploy-matrix
+    if: needs.deploy-matrix.outputs.lambda_names != '[]'
     strategy:
       matrix:
         lambda_name: ${{ fromJson(needs.deploy-matrix.outputs.lambda_names) }}
@@ -165,6 +182,7 @@ jobs:
     needs:
       - deploy-matrix
       - call-deploy-lambda
+    if: needs.deploy-matrix.outputs.cors_lambda_names != '[]'
     strategy:
       matrix:
         lambda_name: ${{ fromJson(needs.deploy-matrix.outputs.cors_lambda_names) }}
@@ -181,3 +199,12 @@ jobs:
       DB_URL: ${{ secrets.DB_URL }}
       DB_USER: ${{ secrets.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+
+  deploy-web:
+    if: ${{ github.event.inputs.deploy_web == 'true' }}
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      operation: ${{ inputs.operation }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
