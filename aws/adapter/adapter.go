@@ -25,22 +25,41 @@ func Create[T service.Creatable](ctx context.Context, request events.APIGatewayV
 	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
+func CreateShortURL(ctx context.Context, request events.APIGatewayV2HTTPRequest) events.APIGatewayV2HTTPResponse {
+	url, err := service.Parse[*shorturl.ShortURL](ctx, []byte(request.Body))
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusBadRequest, Body: http.StatusText(http.StatusBadRequest), Headers: standardHeaders}
+	}
+
+	e := stats.Event{Key: url.Key}
+	createSQLs := []service.CreateSQL[*stats.Event]{stats.CreateTotalSQL, stats.CreateDailySQL, stats.CreateHourlySQL, stats.CreateUserAgentSQL, stats.CreateCountrySQL}
+	for _, sql := range createSQLs {
+		status, body := service.CreateRecord(ctx, sql, &e, 0)
+		if status >= http.StatusBadRequest {
+			return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
+		}
+	}
+
+	status, body := service.CreateRecord(ctx, shorturl.CreateSQL, url, 0)
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
+}
+
 func Retrieve[T service.FieldsPtrsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.RetrieveSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Retrieve(ctx, sql, request.PathParameters[idParam])
 	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
-func Update[T service.Updatable](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.UpdateSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
+func Update[K any, T service.Updatable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.UpdateSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Update(ctx, sql, request.PathParameters[idParam], []byte(request.Body))
 	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
-func Delete[T service.FieldsValsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.DeleteSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
+func Delete[K any, T service.Identifiable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.DeleteSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Delete(ctx, sql, request.PathParameters[idParam])
 	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
-func List[T service.FieldsPtrsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, listSQL service.ListSQL[T]) events.APIGatewayV2HTTPResponse {
+func List[K any, T service.Retrievable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, listSQL service.ListSQL[T]) events.APIGatewayV2HTTPResponse {
 	params := request.QueryStringParameters
 	offset, err := parseQueryInt(params, "offset", 0)
 	if err != nil {

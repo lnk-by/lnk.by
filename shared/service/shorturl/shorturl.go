@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/gofrs/uuid"
+
 	"github.com/lnk.by/shared/service"
 	"github.com/lnk.by/shared/service/stats"
 	"github.com/lnk.by/shared/utils"
@@ -18,8 +20,8 @@ type ShortURL struct {
 	Target     string       `json:"target"`
 	ValidFrom  time.Time    `json:"validFrom"`
 	ValidUntil time.Time    `json:"validUntil"`
-	CampaignID string       `json:"campaignId"`
-	CustomerID string       `json:"customerId"`
+	CampaignID *uuid.UUID   `json:"campaignId"`
+	CustomerID *uuid.UUID   `json:"customerId"`
 	Status     utils.Status `json:"status"`
 	custom     bool
 }
@@ -43,8 +45,12 @@ func init() {
 	}
 }
 
-func (u *ShortURL) WithId(key string) {
-	u.Key = key
+func (u *ShortURL) ParseID(idString string) (string, error) {
+	return idString, nil
+}
+
+func (c *ShortURL) WithID(key string) {
+	c.Key = key
 }
 
 func (u *ShortURL) Validate() error {
@@ -78,11 +84,11 @@ func (u *ShortURL) MaxAttempts() int {
 }
 
 var (
-	CreateSQL   service.CreateSQL[*ShortURL]   = "INSERT INTO shorturl (key, is_custom, target, campaign_id, customer_id, status) VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6)"
-	RetrieveSQL service.RetrieveSQL[*ShortURL] = "SELECT key, is_custom, target, COALESCE(campaign_id, ''), COALESCE(customer_id, ''), status FROM shorturl WHERE key = $1 AND status='active' AND now() BETWEEN valid_from AND valid_until"
-	UpdateSQL   service.UpdateSQL[*ShortURL]   = "UPDATE shorturl SET target = $2, campaign_id = NULLIF($3, ''), customer_id = NULLIF($4, ''), status = $5 WHERE key = $1"
+	CreateSQL   service.CreateSQL[*ShortURL]   = "INSERT INTO shorturl (key, is_custom, target, campaign_id, customer_id, status) VALUES ($1, $2, $3, $4, $5, $6)"
+	RetrieveSQL service.RetrieveSQL[*ShortURL] = "SELECT key, is_custom, target, campaign_id, customer_id, status FROM shorturl WHERE key = $1 AND status='active' AND now() BETWEEN valid_from AND valid_until"
+	UpdateSQL   service.UpdateSQL[*ShortURL]   = "UPDATE shorturl SET target = $2, campaign_id = $3, customer_id = $4, status = $5 WHERE key = $1"
 	DeleteSQL   service.DeleteSQL[*ShortURL]   = "DELETE FROM shorturl WHERE key = $1"
-	ListSQL     service.ListSQL[*ShortURL]     = "SELECT key, is_custom, target, COALESCE(campaign_id, ''), COALESCE(customer_id, ''), status FROM shorturl WHERE status='active' OFFSET $1 LIMIT $2"
+	ListSQL     service.ListSQL[*ShortURL]     = "SELECT key, is_custom, target, campaign_id, customer_id, status FROM shorturl WHERE status='active' OFFSET $1 LIMIT $2"
 )
 
 func CreateShortURL(ctx context.Context, requestBody []byte) (int, string) {

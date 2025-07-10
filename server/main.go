@@ -61,7 +61,7 @@ func initDbConnection() error {
 	return nil
 }
 
-func list[T service.FieldsPtrsAware](c *gin.Context, sql service.ListSQL[T]) {
+func list[K any, T service.Retrievable[K]](c *gin.Context, sql service.ListSQL[T]) {
 	offset, err := parseQueryInt(c, "offset", 0)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid offest"})
@@ -90,7 +90,7 @@ func parseQueryInt(c *gin.Context, key string, defaultValue int) (int, error) {
 	return val, nil
 }
 
-func retrieve[T service.FieldsPtrsAware](c *gin.Context, sql service.RetrieveSQL[T]) {
+func retrieve[K any, T service.Retrievable[K]](c *gin.Context, sql service.RetrieveSQL[T]) {
 	status, body := service.Retrieve(c.Request.Context(), sql, c.Param("id"))
 	respondWithJSON(c, status, body)
 }
@@ -100,12 +100,12 @@ func create[T service.Creatable](c *gin.Context, sql service.CreateSQL[T]) {
 	respondWithJSON(c, status, body)
 }
 
-func update[T service.Updatable](c *gin.Context, sql service.UpdateSQL[T]) {
+func update[K any, T service.Updatable[K]](c *gin.Context, sql service.UpdateSQL[T]) {
 	status, body := service.UpdateFromReqBody(c.Request.Context(), sql, c.Param("id"), c.Request.Body)
 	respondWithJSON(c, status, body)
 }
 
-func deleteEntity[T service.FieldsPtrsAware](c *gin.Context, sql service.DeleteSQL[T]) {
+func deleteEntity[K any, T service.Retrievable[K]](c *gin.Context, sql service.DeleteSQL[T]) {
 	status, body := service.Delete(c.Request.Context(), sql, c.Param("id"))
 	respondWithJSON(c, status, body)
 }
