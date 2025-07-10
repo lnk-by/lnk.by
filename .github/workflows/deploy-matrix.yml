@@ -40,6 +40,12 @@ on:
         type: boolean
         default: false
 
+      deploy_user_customer:
+        description: "🙍‍♀️ Manage user-to-customer lambda?"
+        required: false
+        type: boolean
+        default: false
+
       operation:
         description: "Select operation"
         required: true
@@ -48,7 +54,7 @@ on:
           - 🚀 Deploy
           - 🗑️ Remove
 
-run-name: "${{ github.event.inputs.operation }} selected: 🗂:${{ github.event.inputs.entity }},	🛠:${{ github.event.inputs.action }}, 🔀:${{ github.event.inputs.deploy_redirect }}, 🌐:${{ github.event.inputs.deploy_web }}"
+run-name: "${{ github.event.inputs.operation }}: 🗂️:${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}, 🙍‍♀️:${{ github.event.inputs.deploy_user_customer }},	🌐:${{ github.event.inputs.deploy_web }}"
 
 jobs:
   deploy-matrix:
@@ -95,6 +101,9 @@ jobs:
         if [[ "${{ inputs.deploy_redirect }}" == "true" ]]; then
           targets+="aws/redirect"
         fi
+        if [[ "${{ inputs.deploy_user_customer }}" == "true" ]]; then
+          targets+="aws/user/created"
+        fi
 
         echo "cors_targets=$cors_targets"
         echo "targets=$targets"
@@ -105,12 +114,12 @@ jobs:
         fi
         # Convert array to JSON array with jq, remove whitespace
         if [ -z "$cors_targets" ]; then
-            json='[]'
+          cors_json='[]'
         else
           cors_json=`echo $cors_targets | sed 's/ $//' | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/'`
         fi
         if [ -z "$targets" ]; then
-            json='[]'
+          json='[]'
         else
           json=`echo $targets | sed 's/ $//' | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/'`
         fi

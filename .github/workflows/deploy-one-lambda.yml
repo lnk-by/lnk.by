@@ -30,6 +30,7 @@ on:
           - aws/shorturl/list
           - aws/redirect
           - aws/cors
+          - aws/user/created
 
       manage:
         description: "What to manage: selected lambda or corresponding CORS OPTIONS"
@@ -95,6 +96,7 @@ jobs:
       AWS_API_ID: ${{ vars.AWS_API_ID }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_AUTHORIZER_ID: ${{ vars.AWS_AUTHORIZER_ID }}
+      AWS_USER_POOL_ID: ${{ vars.AWS_USER_POOL_ID }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -123,15 +125,9 @@ jobs:
       run: |
         path=$(echo "${{ inputs.lambda_name }}" | sed 's/^aws//')
         action=$(basename "$path")
-        if [[ "$action" == "redirect" ]]; then
-          route="/go"
-          authorize=false
-        else
-          route=$(dirname $path)s
-          authorize=true
-        fi
-        echo "action=$action" >> "$GITHUB_ENV"
-        echo "route=$route" >> "$GITHUB_ENV"
+        invocation=http
+        route="$(dirname $path)s"
+        authorize=true
 
         # Determine HTTP method based on action
         case "$action" in
@@ -161,6 +157,15 @@ jobs:
           redirect)
             method="GET"
             suffix="/{id}"
+            route="/go"
+            authorize=false
+            ;;
+          created)
+            method=""
+            suffix=""
+            route="/"
+            authorize=false
+            invocation=cognito
             ;;
           *)
             method="GET"
@@ -172,10 +177,14 @@ jobs:
           method="OPTIONS"
           authorize=false
         fi
+
+        echo "action=$action" >> "$GITHUB_ENV"
+        echo "route=$route" >> "$GITHUB_ENV"
+        echo "invocation=$invocation" >> "$GITHUB_ENV"
         echo "method=$method" >> "$GITHUB_ENV"
         echo "suffix=$suffix" >> "$GITHUB_ENV"
         echo "authorize=$authorize" >> "$GITHUB_ENV"
-        echo "🔧 full_route=$method $route$suffix authorize=$authorize"
+        echo "🔧 full_route=$method $route$suffix, authorize=$authorize, invocation=$invocation"
 
     - name: Remove Lambda and API Gateway resources
       if: ${{ endsWith(inputs.operation, 'Remove') }}
@@ -213,6 +222,19 @@ jobs:
         done
 
         echo "✅ Removal complete."
+
+    - name: Remove Cognito
+      if: ${{ endsWith(inputs.operation, 'Remove') && env.invocation == 'cognito' }}
+      run: |
+        set -e
+        out_name="${out_name}"
+
+        aws cognito-idp update-user-pool \
+          --user-pool-id "$AWS_USER_POOL_ID" \
+          --lambda-config "{}" \
+          --auto-verified-attributes email \
+          --region "$AWS_DEFAULT_REGION"
+        echo "✅ Lambda for Congnito removal is done"
 
     - name: Checkout
       uses: actions/checkout@v4
@@ -300,6 +322,8 @@ jobs:
           --function-name "$out_name" \
           --vpc-config "SubnetIds=$SUBNET_IDS,SecurityGroupIds=$SECURITY_GROUP_ID"
 
+        echo "lamnda_created=true" >> "$GITHUB_ENV"
+
     - name: Config Lambda Route
       if: ${{ endsWith(inputs.operation, 'Deploy') && env.route != '/' }}
       run: |
@@ -357,3 +381,23 @@ jobs:
         aws apigatewayv2 create-deployment --api-id "$AWS_API_ID"
 
         echo "✅ Lambda deployment complete."
+
+    - name: Config Cognito
+      if: ${{ endsWith(inputs.operation, 'Deploy') && env.invocation == 'cognito' && env.lamnda_created == 'true' }}
+      run: |
+        set -e
+        out_name="${out_name}"
+        aws lambda add-permission \
+          --function-name "$out_name" \
+          --region "$AWS_DEFAULT_REGION" \
+          --statement-id "AllowCognitoInvokePostConfirmation" \
+          --action "lambda:InvokeFunction" \
+          --principal cognito-idp.amazonaws.com \
+          --source-arn "arn:aws:cognito-idp:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:userpool/$AWS_USER_POOL_ID"
+
+        aws cognito-idp update-user-pool \
+          --user-pool-id "$AWS_USER_POOL_ID" \
+          --lambda-config "PostConfirmation=arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:$out_name" \
+          --auto-verified-attributes email \
+          --region "$AWS_DEFAULT_REGION"
+        echo "✅ Lambda for Congnito configuraion is done"

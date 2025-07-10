@@ -91,7 +91,10 @@ func Create[T Creatable](ctx context.Context, createSQL CreateSQL[T], content []
 	if err != nil {
 		return failed(status, fmt.Errorf("failed to create %T: %w", t, err))
 	}
+	return CreateRecord(ctx, createSQL, t)
+}
 
+func CreateRecord[T Creatable](ctx context.Context, createSQL CreateSQL[T], t T) (int, string) {
 	maxAttempts := 1
 	if t, ok := any(t).(retriable); ok {
 		maxAttempts = t.MaxAttempts()
