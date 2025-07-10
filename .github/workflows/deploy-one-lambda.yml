@@ -138,6 +138,9 @@ jobs:
           create)
             method="POST"
             suffix=""
+            if [[ "$route" == "/shorturls" ]]; then
+              authorize=false
+            fi
             ;;
           update)
             method="PUT"
@@ -172,7 +175,7 @@ jobs:
         echo "method=$method" >> "$GITHUB_ENV"
         echo "suffix=$suffix" >> "$GITHUB_ENV"
         echo "authorize=$authorize" >> "$GITHUB_ENV"
-        echo "🔧 full_route=$method $route$suffix"
+        echo "🔧 full_route=$method $route$suffix authorize=$authorize"
 
     - name: Remove Lambda and API Gateway resources
       if: ${{ endsWith(inputs.operation, 'Remove') }}

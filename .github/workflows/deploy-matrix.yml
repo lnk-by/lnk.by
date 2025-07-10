@@ -48,7 +48,7 @@ on:
           - 🚀 Deploy
           - 🗑️ Remove
 
-run-name: "${{ github.event.inputs.operation }} selected Lambdas: 🗂️${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}, 	🌐:${{ github.event.inputs.deploy_web }}"
+run-name: "${{ github.event.inputs.operation }} selected: 🗂:${{ github.event.inputs.entity }},	🛠:${{ github.event.inputs.action }}, 🔀:${{ github.event.inputs.deploy_redirect }}, 🌐:${{ github.event.inputs.deploy_web }}"
 
 jobs:
   deploy-matrix:

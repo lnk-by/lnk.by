@@ -205,8 +205,8 @@
                     status.textContent = 'Password changed successfully.';
                     // Reset fields and hide change password section again
                     document.getElementById('secretField2').value = '';
-                    changePasswordFields.style.display = 'none';
-                    changePasswordLink.style.display = 'inline';
+                    document.getElementById('changePasswordFields').style.display = 'none';
+                    document.getElementById('showChangePasswordLink').style.display = 'inline';
                 } else if (action == 'ForgotPassword') {
                     status.textContent = 'Please check your email for the cofirmation code, fill it and your new password and press New Password button';
                     document.getElementById('newPasswordBtn').style.display = 'inline';
