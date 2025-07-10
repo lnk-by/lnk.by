@@ -173,27 +173,38 @@ func retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 	})
 }
 
-type Updatable interface {
-	FieldsValsAware
-	WithId(id string)
+type Identifiable[K any] interface {
+	ParseID(string) (K, error)
 }
 
-func UpdateFromReqBody[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, body io.ReadCloser) (int, string) {
+type Updatable[K any] interface {
+	FieldsValsAware
+	Identifiable[K]
+	WithID(K)
+}
+
+func UpdateFromReqBody[K any, T Updatable[K]](ctx context.Context, updateSQL UpdateSQL[T], idString string, body io.ReadCloser) (int, string) {
 	content, err := io.ReadAll(body)
 	if err != nil {
 		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
 	}
-	return Update(ctx, updateSQL, id, content)
+	return Update(ctx, updateSQL, idString, content)
 }
 
-func Update[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, content []byte) (int, string) {
+func Update[K any, T Updatable[K]](ctx context.Context, updateSQL UpdateSQL[T], idString string, content []byte) (int, string) {
 	status, t, err := decode[T](content)
 	if err != nil {
 		return failed(status, fmt.Errorf("failed to update %T: %w", t, err))
 	}
 
+	id, err := t.ParseID(idString)
+	if err != nil {
+		return failed(http.StatusNotFound, fmt.Errorf("failed to parse %T ID: %v: %w", t, idString, err))
+	}
+
+	t.WithID(id)
+
 	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
-		t.WithId(id)
 		commandTag, err := conn.Exec(ctx, string(updateSQL), t.FieldsVals()...)
 		switch {
 		case err != nil:
@@ -208,10 +219,15 @@ func Update[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string,
 	}))
 }
 
-func Delete[T any](ctx context.Context, deleteSQL DeleteSQL[T], id string) (int, string) {
+func Delete[K any, T Identifiable[K]](ctx context.Context, deleteSQL DeleteSQL[T], idString string) (int, string) {
+	var t T
+	id, err := t.ParseID(idString) // it it OK if t is nil
+	if err != nil {
+		return failed(http.StatusNotFound, fmt.Errorf("failed to parse %T ID: %v: %w", t, idString, err))
+	}
+
 	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
 		commandTag, err := conn.Exec(ctx, string(deleteSQL), id)
-		var t T // only to build the error
 		switch {
 		case err != nil:
 			return http.StatusInternalServerError, t, fmt.Errorf("failed to delete %T with id %v: %w", t, id, err)
@@ -249,8 +265,8 @@ func List[T FieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 	}))
 }
 
-func UUID() string {
-	return uuid.Must(uuid.NewV1()).String()
+func UUID() uuid.UUID {
+	return uuid.Must(uuid.NewV1())
 }
 
 var (
