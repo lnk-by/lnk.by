@@ -138,6 +138,9 @@ jobs:
           create)
             method="POST"
             suffix=""
+            if [[ $route == "shorturl" ]]; then
+              authorize=false
+            fi
             ;;
           update)
             method="PUT"
