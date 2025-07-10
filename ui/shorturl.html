@@ -45,16 +45,10 @@
       }
 
       try {
-        const accessToken = sessionStorage.getItem('accessToken');
-        if (!accessToken) {
-            alert('Not logged in');
-            location.href = './auth.html';
-        }        
         const shortUrlEndpoint = apiEndpoint + "/shorturls"
         const response = await fetch(shortUrlEndpoint, {
           method: "POST",
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({ target: url, key: urlKey.value.trim() })
