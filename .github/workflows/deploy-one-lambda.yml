@@ -138,7 +138,9 @@ jobs:
           create)
             method="POST"
             suffix=""
+            echo "before set authorize=$authorize route=$route"
             if [[ "$route" == "shorturls" ]]; then
+              echo "set authorize false"
               authorize=false
             fi
             ;;
