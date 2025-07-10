@@ -33,7 +33,7 @@ func TestCreateAndGet(t *testing.T) {
 		adam := Customer{Email: "adam@human.net", Name: "Adam"}
 		created := service.Create(t, CreateSQL, &adam)
 
-		retrieved := service.Retrieve(t, RetrieveSQL, created.ID)
+		retrieved := service.Retrieve(t, RetrieveSQL, created.ID.String())
 		assert.Equal(t, created, retrieved)
 
 		listed := service.List(t, ListSQL, 0, 10)

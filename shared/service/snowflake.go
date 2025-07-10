@@ -8,11 +8,12 @@ import (
 	"time"
 )
 
+const epoch int64 = 1577836800000 // Custom epoch: 2020-01-01T00:00:00Z
+
 const (
-	epoch         int64 = 1577836800000 // Custom epoch: 2020-01-01T00:00:00Z
-	timestampBits       = 41
-	machineIDBits       = 10
-	sequenceBits        = 12
+	timestampBits = 41
+	machineIDBits = 10
+	sequenceBits  = 12
 
 	maxMachineID   = -1 ^ (-1 << machineIDBits) // 1023
 	maxSequence    = -1 ^ (-1 << sequenceBits)  // 4095

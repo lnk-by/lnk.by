@@ -2,10 +2,11 @@ package service
 
 import (
 	"encoding/json"
-	"github.com/lnk.by/shared/service"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
+
+	"github.com/lnk.by/shared/service"
+	"github.com/stretchr/testify/assert"
 )
 
 func Create[T service.Creatable](t *testing.T, createSQL service.CreateSQL[T], entity T) T {
@@ -22,7 +23,7 @@ func Create[T service.Creatable](t *testing.T, createSQL service.CreateSQL[T], e
 	return created
 }
 
-func Retrieve[T service.FieldsPtrsAware](t *testing.T, retrieveSQL service.RetrieveSQL[T], id string) T {
+func Retrieve[K any, T service.Retrievable[K]](t *testing.T, retrieveSQL service.RetrieveSQL[T], id string) T {
 	status, body := service.Retrieve(t.Context(), retrieveSQL, id)
 	assert.Equal(t, http.StatusOK, status)
 
@@ -33,7 +34,7 @@ func Retrieve[T service.FieldsPtrsAware](t *testing.T, retrieveSQL service.Retri
 	return retrieved
 }
 
-func List[T service.FieldsPtrsAware](t *testing.T, listSQL service.ListSQL[T], offset int, limit int) []T {
+func List[K any, T service.Retrievable[K]](t *testing.T, listSQL service.ListSQL[T], offset int, limit int) []T {
 	status, body := service.List(t.Context(), listSQL, offset, limit)
 	assert.Equal(t, http.StatusOK, status)
 
