@@ -23,7 +23,7 @@ func createCustomerFromUser(ctx context.Context, event events.CognitoEventUserPo
 		Status: utils.StatusActive,
 	}
 
-	status, message := service.CreateRecord(ctx, customer.CreateSQL, &c)
+	status, message := service.CreateRecord(ctx, customer.CreateSQL, &c, 1)
 
 	if status != http.StatusCreated {
 		return event, fmt.Errorf("failed to create customer for user id: %s, name: %s, email: %s, error: %s", id, event.UserName, email, message)

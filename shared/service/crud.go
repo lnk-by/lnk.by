@@ -68,14 +68,7 @@ func CreateFromReqBody[T Creatable](ctx context.Context, createSQL CreateSQL[T],
 	if err != nil {
 		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
 	}
-	t := inst[T]()
-	if err := json.Unmarshal(content, t); err != nil {
-		return failed(http.StatusBadRequest, fmt.Errorf("failed to unmarshal %T from JSON: %w", t, err))
-	}
-	// we do not validate entity here. Reasons:
-	// 1. we use it for creating customer that should not contain ID if it is created directly but contains ID if it is created from Cognito, but Validate() requres that ID is empty
-	// 2. when we are here we hope that the instance is already validated
-	return createRecord(ctx, createSQL, t, 1)
+	return Create(ctx, createSQL, content)
 }
 
 func Create[T Creatable](ctx context.Context, createSQL CreateSQL[T], content []byte) (int, string) {
@@ -86,10 +79,10 @@ func Create[T Creatable](ctx context.Context, createSQL CreateSQL[T], content []
 	if err := t.Validate(); err != nil {
 		return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %T: %w", t, err))
 	}
-	return createRecord(ctx, createSQL, t, 0)
+	return CreateRecord(ctx, createSQL, t, 0)
 }
 
-func createRecord[T Creatable](ctx context.Context, createSQL CreateSQL[T], t T, generateFromIteration int) (int, string) {
+func CreateRecord[T Creatable](ctx context.Context, createSQL CreateSQL[T], t T, generateFromIteration int) (int, string) {
 	maxAttempts := 1
 	if t, ok := any(t).(retriable); ok {
 		maxAttempts = t.MaxAttempts()
