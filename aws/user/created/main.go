@@ -12,7 +12,7 @@ import (
 	"github.com/lnk.by/shared/utils"
 )
 
-func handler(ctx context.Context, event events.CognitoEventUserPoolsPostConfirmation) (events.CognitoEventUserPoolsPostConfirmation, error) {
+func createCustomerFromUser(ctx context.Context, event events.CognitoEventUserPoolsPostConfirmation) (events.CognitoEventUserPoolsPostConfirmation, error) {
 	id := event.Request.UserAttributes["sub"]
 	email := event.Request.UserAttributes["email"]
 
@@ -26,7 +26,7 @@ func handler(ctx context.Context, event events.CognitoEventUserPoolsPostConfirma
 	status, message := service.CreateRecord(ctx, customer.CreateSQL, &c)
 
 	if status != http.StatusCreated {
-		return event, fmt.Errorf("Cannot create customer for user id: %s, name: %s, email: %s, error: %s", id, event.UserName, email, message)
+		return event, fmt.Errorf("failed to create customer for user id: %s, name: %s, email: %s, error: %s", id, event.UserName, email, message)
 	}
 
 	return event, nil
@@ -34,5 +34,5 @@ func handler(ctx context.Context, event events.CognitoEventUserPoolsPostConfirma
 }
 
 func main() {
-	adapter.LambdaMain(handler)
+	adapter.LambdaMain(createCustomerFromUser)
 }

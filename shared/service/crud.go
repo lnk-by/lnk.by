@@ -54,21 +54,6 @@ type FieldsValsAware interface {
 	FieldsVals() []any
 }
 
-func decode[T FieldsValsAware](content []byte) (status int, t T, err error) {
-	t = inst[T]()
-	if err = json.Unmarshal(content, t); err != nil {
-		status = http.StatusInternalServerError
-		err = fmt.Errorf("failed to unmarshal %T from JSON: %w", t, err)
-	}
-
-	if err = t.Validate(); err != nil {
-		status = http.StatusBadRequest
-		err = fmt.Errorf("failed to validate %T %v: %w", t, t, err)
-	}
-
-	return
-}
-
 type Creatable interface {
 	FieldsValsAware
 	Generate()
@@ -87,14 +72,18 @@ func CreateFromReqBody[T Creatable](ctx context.Context, createSQL CreateSQL[T],
 }
 
 func Create[T Creatable](ctx context.Context, createSQL CreateSQL[T], content []byte) (int, string) {
-	status, t, err := decode[T](content)
-	if err != nil {
-		return failed(status, fmt.Errorf("failed to create %T: %w", t, err))
+	t := inst[T]()
+	if err := json.Unmarshal(content, t); err != nil {
+		return failed(http.StatusBadRequest, fmt.Errorf("failed to unmarshal %T from JSON: %w", t, err))
 	}
 	return CreateRecord(ctx, createSQL, t)
 }
 
 func CreateRecord[T Creatable](ctx context.Context, createSQL CreateSQL[T], t T) (int, string) {
+	if err := t.Validate(); err != nil {
+		return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %T: %w", t, err))
+	}
+
 	maxAttempts := 1
 	if t, ok := any(t).(retriable); ok {
 		maxAttempts = t.MaxAttempts()
@@ -190,9 +179,12 @@ func UpdateFromReqBody[T Updatable](ctx context.Context, updateSQL UpdateSQL[T],
 }
 
 func Update[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, content []byte) (int, string) {
-	status, t, err := decode[T](content)
-	if err != nil {
-		return failed(status, fmt.Errorf("failed to update %T: %w", t, err))
+	t := inst[T]()
+	if err := json.Unmarshal(content, t); err != nil {
+		return failed(http.StatusBadRequest, fmt.Errorf("failed to unmarshal %T from JSON: %w", t, err))
+	}
+	if err := t.Validate(); err != nil {
+		return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %T: %w", t, err))
 	}
 
 	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
