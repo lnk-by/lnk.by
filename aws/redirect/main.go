@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+<<<<<<< HEAD
 	"fmt"
+=======
+>>>>>>> 6e300f7 (issue-75: sending stats to special lambda)
 	"log/slog"
 	"net/http"
 	"time"
