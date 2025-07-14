@@ -21,3 +21,5 @@ DROP TABLE IF EXISTS daily_count;
 DROP TABLE IF EXISTS hourly_count;
 
 DROP TABLE IF EXISTS useragent_count;
+
+DROP TABLE IF EXISTS country_count;
