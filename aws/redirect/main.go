@@ -54,7 +54,7 @@ func sendStatistics(ctx context.Context, key string, req events.APIGatewayV2HTTP
 		IP:        req.RequestContext.HTTP.SourceIP,
 		UserAgent: req.Headers["user-agent"],
 		Referer:   req.Headers["referer"],
-		Timestamp: time.Now(),
+		Timestamp: time.Now().UTC(),
 		Language:  req.Headers["accept-language"],
 	}
 
