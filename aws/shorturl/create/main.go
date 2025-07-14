@@ -5,11 +5,10 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/lnk.by/aws/adapter"
-	"github.com/lnk.by/shared/service/shorturl"
 )
 
 func createShortURL(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	return adapter.Create(ctx, request, shorturl.CreateSQL), nil
+	return adapter.CreateShortURL(ctx, request), nil
 }
 
 func main() {

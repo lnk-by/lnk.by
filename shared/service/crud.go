@@ -71,6 +71,17 @@ func CreateFromReqBody[T Creatable](ctx context.Context, createSQL CreateSQL[T],
 	return Create(ctx, createSQL, content)
 }
 
+func Parse[T Creatable](ctx context.Context, content []byte) (T, error) {
+	t := inst[T]()
+	if err := json.Unmarshal(content, t); err != nil {
+		return t, fmt.Errorf("failed to unmarshal %T from JSON: %w", t, err)
+	}
+	if err := t.Validate(); err != nil {
+		return t, fmt.Errorf("failed to validate %T: %w", t, err)
+	}
+	return t, nil
+}
+
 func Create[T Creatable](ctx context.Context, createSQL CreateSQL[T], content []byte) (int, string) {
 	t := inst[T]()
 	if err := json.Unmarshal(content, t); err != nil {
