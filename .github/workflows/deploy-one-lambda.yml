@@ -31,6 +31,7 @@ on:
           - aws/redirect
           - aws/cors
           - aws/user/created
+          - aws/stats/record
 
       manage:
         description: "What to manage: selected lambda or corresponding CORS OPTIONS"
@@ -167,6 +168,12 @@ jobs:
             authorize=false
             invocation=cognito
             ;;
+          stats)
+            method=""
+            suffix=""
+            route="/"
+            authorize=false
+            ;;
           *)
             method="GET"
             suffix=""
@@ -235,6 +242,14 @@ jobs:
           --auto-verified-attributes email \
           --region "$AWS_DEFAULT_REGION"
         echo "✅ Lambda for Congnito removal is done"
+
+    - name: Remove Stats Invocation
+      if: ${{ endsWith(inputs.operation, 'Remove') && env.lambda_path == 'aws/stats/record' }}
+      run: |
+        set +e
+        out_name="${out_name}"
+        aws lambda remove-permission --function-name "$out_name" --statement-id allow-redirect-lambda
+        set -e
 
     - name: Checkout
       uses: actions/checkout@v4
@@ -322,7 +337,7 @@ jobs:
           --function-name "$out_name" \
           --vpc-config "SubnetIds=$SUBNET_IDS,SecurityGroupIds=$SECURITY_GROUP_ID"
 
-        echo "lamnda_created=true" >> "$GITHUB_ENV"
+        echo "lambda_created=true" >> "$GITHUB_ENV"
 
     - name: Config Lambda Route
       if: ${{ endsWith(inputs.operation, 'Deploy') && env.route != '/' }}
@@ -383,7 +398,7 @@ jobs:
         echo "✅ Lambda deployment complete."
 
     - name: Config Cognito
-      if: ${{ endsWith(inputs.operation, 'Deploy') && env.invocation == 'cognito' && env.lamnda_created == 'true' }}
+      if: ${{ endsWith(inputs.operation, 'Deploy') && env.invocation == 'cognito' && env.lambda_created == 'true' }}
       run: |
         set -e
         out_name="${out_name}"
@@ -401,3 +416,30 @@ jobs:
           --auto-verified-attributes email \
           --region "$AWS_DEFAULT_REGION"
         echo "✅ Lambda for Congnito configuraion is done"
+
+    - name: Config Stats Invocation
+      if: ${{ endsWith(inputs.operation, 'Deploy') && env.lambda_path == 'aws/stats/record' }}
+      run: |
+        set +e
+        out_name="${out_name}"
+        aws lambda add-permission \
+          --function-name "$out_name" \
+          --statement-id allow-redirect-lambda \
+          --action lambda:InvokeFunction \
+          --principal lambda.amazonaws.com \
+          --source-arn "arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:aws_redirect"
+        set -e
+
+        aws iam put-role-policy \
+          --role-name LAMBDA_MANAGER \
+          --policy-name AllowInvokeRecordStatistics \
+          --policy-document "{
+            \"Version\": \"2012-10-17\",
+            \"Statement\": [
+              {
+                \"Effect\": \"Allow\",
+                \"Action\": \"lambda:InvokeFunction\",
+                \"Resource\": \"arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:$out_name\"
+              }
+            ]
+          }"
