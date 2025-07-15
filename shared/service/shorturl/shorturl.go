@@ -76,7 +76,7 @@ func (u *ShortURL) MaxAttempts() int {
 
 var (
 	CreateSQL   service.CreateSQL[*ShortURL]   = "INSERT INTO shorturl (key, is_custom, target, campaign_id, customer_id, status) VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6)"
-	RetrieveSQL service.RetrieveSQL[*ShortURL] = "SELECT key, is_custom, target, COALESCE(campaign_id, ''), COALESCE(customer_id, ''), status FROM shorturl WHERE key = $1 AND status='active' AND now() >= valid_from AND now() < valid_until"
+	RetrieveSQL service.RetrieveSQL[*ShortURL] = "SELECT key, is_custom, target, COALESCE(campaign_id, ''), COALESCE(customer_id, ''), status FROM shorturl WHERE key = $1 AND status='active' AND now() BETWEEN valid_from AND valid_until"
 	UpdateSQL   service.UpdateSQL[*ShortURL]   = "UPDATE shorturl SET target = $2, campaign_id = NULLIF($3, ''), customer_id = NULLIF($4, ''), status = $5 WHERE key = $1"
 	DeleteSQL   service.DeleteSQL[*ShortURL]   = "DELETE FROM shorturl WHERE key = $1"
 	ListSQL     service.ListSQL[*ShortURL]     = "SELECT key, is_custom, target, COALESCE(campaign_id, ''), COALESCE(customer_id, ''), status FROM shorturl WHERE status='active' OFFSET $1 LIMIT $2"

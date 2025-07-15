@@ -50,7 +50,7 @@ func (c *Campaign) Generate() {
 
 var (
 	CreateSQL   service.CreateSQL[*Campaign]   = "INSERT INTO campaign (id, name, organization_id, customer_id, status) VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), $5)"
-	RetrieveSQL service.RetrieveSQL[*Campaign] = "SELECT id, name, COALESCE(organization_id, ''), COALESCE(customer_id, ''), status FROM campaign WHERE id = $1 AND status='active' AND now() >= valid_from AND now() < valid_until"
+	RetrieveSQL service.RetrieveSQL[*Campaign] = "SELECT id, name, COALESCE(organization_id, ''), COALESCE(customer_id, ''), status FROM campaign WHERE id = $1 AND status='active' AND now() BETWEEN valid_from AND valid_until"
 	UpdateSQL   service.UpdateSQL[*Campaign]   = "UPDATE campaign SET name = $2, organization_id = NULLIF($3, ''), customer_id = NULLIF($4, ''), status = $5 WHERE id = $1"
 	DeleteSQL   service.DeleteSQL[*Campaign]   = "DELETE FROM campaign WHERE id = $1"
 	ListSQL     service.ListSQL[*Campaign]     = "SELECT id, name, COALESCE(organization_id, ''), COALESCE(customer_id, ''), status FROM campaign WHERE status='active' OFFSET $1 LIMIT $2"
