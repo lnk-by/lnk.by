@@ -2,6 +2,7 @@ package stats
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -19,13 +20,19 @@ type Event struct {
 
 var receivers []func(Event) string = []func(Event) string{
 	func(e Event) string {
-		return "UPDATE stats_table SET col = col + 1 WHERE key = $1"
+		return "UPDATE total_count SET total = total + 1 WHERE key = $1"
+	},
+	func(e Event) string {
+		columnName := fmt.Sprintf("day%03d", e.Timestamp.YearDay())
+		return fmt.Sprintf("UPDATE daily_count SET %[1]s = %[1]s + 1 WHERE key = $1", columnName)
+	},
+	func(e Event) string {
+		columnName := fmt.Sprintf("hour%02d", e.Timestamp.Hour())
+		return fmt.Sprintf("UPDATE hourly_count SET %[1]s = %[1]s + 1 WHERE key = $1", columnName)
 	},
 }
 
 func Process(ctx context.Context, event Event) error {
 	slog.Info("Processing stats", "key", event.Key, "ts", event.Timestamp)
-
-	// where r.Receive returns: `UPDATE stats_table SET col = col + 1 WHERE key = $1`
 	return db.BulkUpdateWithID(ctx, receivers, event, event.Key)
 }
