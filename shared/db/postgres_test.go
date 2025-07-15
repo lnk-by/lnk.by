@@ -187,3 +187,14 @@ $xxx$
 asd`}
 	testSplitSQLStatements(t, script, expected)
 }
+
+func TestSplitSQLStatements_withDollarQuote_badScript(t *testing.T) {
+	script := `qwe $zzz$
+rty;
+uio
+asd`
+	_, err := splitSQLStatements(script)
+	if assert.Error(t, err) {
+		assert.Equal(t, errInvalidScript, err)
+	}
+}
