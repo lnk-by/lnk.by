@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -77,7 +78,10 @@ func RunScript(ctx context.Context, path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read SQL file: %w", err)
 	}
-	queries := strings.Split(string(content), ";")
+	queries, err := splitSQLStatements(string(content))
+	if err != nil {
+		return err
+	}
 
 	conn, err := Get(ctx)
 	if err != nil {
@@ -98,4 +102,39 @@ func RunScript(ctx context.Context, path string) error {
 	}
 
 	return nil
+}
+
+var dollarQuotePattern = regexp.MustCompile(`\$\w*\$`)
+
+func splitSQLStatements(script string) ([]string, error) {
+	var stmts []string
+	var buf strings.Builder
+	var inDollarQuote bool
+	lines := strings.Split(script, "\n")
+
+	for _, line := range lines {
+		buf.WriteString(line)
+		buf.WriteString("\n")
+
+		// Flip flag if any dollar-quote tag is found
+		if dollarQuotePattern.MatchString(line) {
+			inDollarQuote = !inDollarQuote
+		}
+
+		// Only split on semicolon if not inside a quoted block
+		if !inDollarQuote && strings.Contains(line, ";") {
+			stmt := strings.TrimSpace(buf.String())
+			if stmt != "" {
+				stmts = append(stmts, stmt)
+			}
+			buf.Reset()
+		}
+	}
+	// Remaining content
+	stmt := strings.TrimSpace(buf.String())
+	if stmt != "" {
+		stmts = append(stmts, stmt)
+	}
+
+	return stmts, nil
 }
