@@ -205,34 +205,3 @@ func skipSQLComments(stmt string) string {
 
 	return buf.String()
 }
-
-func BulkUpdateWithID[T any](
-	ctx context.Context,
-	receivers []func(T) string,
-	t T,
-	id string,
-) error {
-	conn, err := Get(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get DB connection: %w", err)
-	}
-
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	for _, receiver := range receivers {
-		_, err = tx.Exec(ctx, receiver(t), id) // `$1` will be replaced with `id`
-		if err != nil {
-			return fmt.Errorf("failed to execute statement: %w", err)
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
-}
