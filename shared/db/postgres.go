@@ -106,6 +106,41 @@ func RunScript(ctx context.Context, path string) error {
 	return nil
 }
 
+func BulkUpdateWithID[T any](
+	ctx context.Context,
+	stmtFactories []T,
+	stmtFunc func(T) (string, error),
+	id string,
+) error {
+	conn, err := Get(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get DB connection: %w", err)
+	}
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, item := range stmtFactories {
+		stmt, err := stmtFunc(item)
+		if err != nil {
+			return fmt.Errorf("failed to build statement: %w", err)
+		}
+		_, err = tx.Exec(ctx, stmt, id) // `$1` will be replaced with `id`
+		if err != nil {
+			return fmt.Errorf("failed to execute statement: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 var dollarQuotePattern = regexp.MustCompile(`\$\w*\$`)
 
 var errInvalidScript = errors.New("invalid script: unmatched dollar quotes")
