@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -78,9 +79,10 @@ func RunScript(ctx context.Context, path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read SQL file: %w", err)
 	}
+
 	queries, err := splitSQLStatements(string(content))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse SQL script: %w", err)
 	}
 
 	conn, err := Get(ctx)
@@ -106,34 +108,63 @@ func RunScript(ctx context.Context, path string) error {
 
 var dollarQuotePattern = regexp.MustCompile(`\$\w*\$`)
 
+func skipSQLComments(stmt string) string {
+	if stmt == "" {
+		return stmt
+	}
+
+	var buf strings.Builder
+	for line := range strings.SplitSeq(stmt, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "--") {
+			continue
+		}
+
+		if buf.Len() > 0 {
+			buf.WriteRune('\n')
+		}
+		buf.WriteString(line)
+	}
+
+	return buf.String()
+}
+
+func appendSQL(stmts []string, stmt string) []string {
+	if stmt := skipSQLComments(stmt); len(stmt) > 0 {
+		stmts = append(stmts, stmt)
+	}
+
+	return stmts
+}
+
+var errInvalidScript = errors.New("invalid script: unmatched dollar quotes")
+
 func splitSQLStatements(script string) ([]string, error) {
 	var stmts []string
 	var buf strings.Builder
-	var inDollarQuote bool
-	lines := strings.Split(script, "\n")
+	var dollarQuotesCount int
 
-	for _, line := range lines {
-		buf.WriteString(line)
-		buf.WriteString("\n")
-
-		// Flip flag if any dollar-quote tag is found
-		if dollarQuotePattern.MatchString(line) {
-			inDollarQuote = !inDollarQuote
+	for stmt := range strings.SplitSeq(script, ";") {
+		dollarQuotes := dollarQuotePattern.FindAllString(stmt, -1)
+		if dollarQuotes == nil {
+			stmts = appendSQL(stmts, stmt)
+			continue
 		}
 
-		// Only split on semicolon if not inside a quoted block
-		if !inDollarQuote && strings.Contains(line, ";") {
-			stmt := strings.TrimSpace(buf.String())
-			if stmt != "" {
-				stmts = append(stmts, stmt)
-			}
-			buf.Reset()
+		buf.WriteString(stmt)
+
+		dollarQuotesCount += len(dollarQuotes)
+		if dollarQuotesCount%2 != 0 {
+			buf.WriteRune(';')
+			continue
 		}
+
+		stmts = appendSQL(stmts, buf.String())
+		buf.Reset()
 	}
-	// Remaining content
-	stmt := strings.TrimSpace(buf.String())
-	if stmt != "" {
-		stmts = append(stmts, stmt)
+
+	if buf.Len() > 0 {
+		return nil, errInvalidScript
 	}
 
 	return stmts, nil
