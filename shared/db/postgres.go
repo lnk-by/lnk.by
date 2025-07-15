@@ -106,6 +106,7 @@ func RunScript(ctx context.Context, path string) error {
 	return nil
 }
 
+<<<<<<< HEAD
 var dollarQuotePattern = regexp.MustCompile(`\$\w*\$`)
 
 var errInvalidScript = errors.New("invalid script: unmatched dollar quotes")
