@@ -177,8 +177,8 @@ func skipSQLComments(stmt string) string {
 
 func BulkUpdateWithID[T any](
 	ctx context.Context,
-	stmtFactories []T,
-	stmtFunc func(T) (string, error),
+	receivers []func(T) string,
+	t T,
 	id string,
 ) error {
 	conn, err := Get(ctx)
@@ -192,12 +192,8 @@ func BulkUpdateWithID[T any](
 	}
 	defer tx.Rollback(ctx)
 
-	for _, item := range stmtFactories {
-		stmt, err := stmtFunc(item)
-		if err != nil {
-			return fmt.Errorf("failed to build statement: %w", err)
-		}
-		_, err = tx.Exec(ctx, stmt, id) // `$1` will be replaced with `id`
+	for _, receiver := range receivers {
+		_, err = tx.Exec(ctx, receiver(t), id) // `$1` will be replaced with `id`
 		if err != nil {
 			return fmt.Errorf("failed to execute statement: %w", err)
 		}
