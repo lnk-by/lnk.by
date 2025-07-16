@@ -153,14 +153,16 @@ func redirect(c *gin.Context) {
 		return
 	}
 
-	sendStatistics(c, key)
+	if err := sendStatistics(c, key); err != nil {
+		slog.Warn("Failed to send stats", "error", err)
+	}
 
 	c.Redirect(http.StatusFound, url.Target)
 }
 
 func sendStatistics(c *gin.Context, key string) error {
 	header := c.Request.Header
-	event := stats.StatsEvent{
+	event := stats.Event{
 		Key:       key,
 		IP:        c.ClientIP(),
 		UserAgent: header.Get("user-agent"),
@@ -168,7 +170,7 @@ func sendStatistics(c *gin.Context, key string) error {
 		Timestamp: time.Now().UTC(),
 		Language:  header.Get("accept-language"),
 	}
-	return stats.ProcessStatistics(c.Request.Context(), event)
+	return stats.Process(c.Request.Context(), event)
 }
 
 func run() error {

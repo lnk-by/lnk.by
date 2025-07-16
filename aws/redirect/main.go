@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -37,7 +38,9 @@ func redirect(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.A
 		return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: errStr}, nil
 	}
 
-	sendStatistics(ctx, key, req)
+	if err := sendStatistics(ctx, key, req); err != nil {
+		slog.Warn("Failed to send stats", "error", err)
+	}
 
 	return events.APIGatewayV2HTTPResponse{
 		StatusCode: http.StatusMovedPermanently, // TODO: in future we can return 302 if the URL TTL is short or 307 or  308 if we will support methods other then GET
@@ -48,8 +51,8 @@ func redirect(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.A
 	}, nil
 }
 
-func sendStatistics(ctx context.Context, key string, req events.APIGatewayV2HTTPRequest) {
-	event := stats.StatsEvent{
+func sendStatistics(ctx context.Context, key string, req events.APIGatewayV2HTTPRequest) error {
+	event := stats.Event{
 		Key:       key,
 		IP:        req.RequestContext.HTTP.SourceIP,
 		UserAgent: req.Headers["user-agent"],
@@ -60,8 +63,7 @@ func sendStatistics(ctx context.Context, key string, req events.APIGatewayV2HTTP
 
 	payload, err := json.Marshal(event)
 	if err != nil {
-		slog.Warn("Failed to marshal stats event", "error", err)
-		return
+		return fmt.Errorf("failed to marshal stats event %v: %w", event, err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -72,9 +74,12 @@ func sendStatistics(ctx context.Context, key string, req events.APIGatewayV2HTTP
 		InvocationType: types.InvocationTypeEvent,
 		Payload:        payload,
 	})
+
 	if err != nil {
-		slog.Warn("Failed to invoke stats lambda", "error", err)
+		return fmt.Errorf("failed to invoke stats lambda: %w", err)
 	}
+
+	return nil
 }
 
 func main() {

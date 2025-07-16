@@ -7,8 +7,8 @@ import (
 	"github.com/lnk.by/shared/service/stats"
 )
 
-func acceptStatistics(ctx context.Context, event stats.StatsEvent) error {
-	return stats.ProcessStatistics(ctx, event)
+func acceptStatistics(ctx context.Context, event stats.Event) error {
+	return stats.Process(ctx, event)
 }
 
 func main() {

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type StatsEvent struct {
+type Event struct {
 	Key       string    `json:"key"`
 	IP        string    `json:"ip"`
 	UserAgent string    `json:"user_agent"`
@@ -15,7 +15,7 @@ type StatsEvent struct {
 	Language  string    `json:"language,omitempty"`
 }
 
-func ProcessStatistics(ctx context.Context, event StatsEvent) error {
+func Process(ctx context.Context, event Event) error {
 	slog.Info("Processing stats", "key", event.Key, "ts", event.Timestamp)
 	return nil
 }
