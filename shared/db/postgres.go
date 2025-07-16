@@ -108,35 +108,6 @@ func RunScript(ctx context.Context, path string) error {
 
 var dollarQuotePattern = regexp.MustCompile(`\$\w*\$`)
 
-func skipSQLComments(stmt string) string {
-	if stmt == "" {
-		return stmt
-	}
-
-	var buf strings.Builder
-	for line := range strings.SplitSeq(stmt, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "--") {
-			continue
-		}
-
-		if buf.Len() > 0 {
-			buf.WriteRune('\n')
-		}
-		buf.WriteString(line)
-	}
-
-	return buf.String()
-}
-
-func appendSQL(stmts []string, stmt string) []string {
-	if stmt := skipSQLComments(stmt); len(stmt) > 0 {
-		stmts = append(stmts, stmt)
-	}
-
-	return stmts
-}
-
 var errInvalidScript = errors.New("invalid script: unmatched dollar quotes")
 
 func splitSQLStatements(script string) ([]string, error) {
@@ -168,4 +139,33 @@ func splitSQLStatements(script string) ([]string, error) {
 	}
 
 	return stmts, nil
+}
+
+func appendSQL(stmts []string, stmt string) []string {
+	if stmt := skipSQLComments(stmt); len(stmt) > 0 {
+		stmts = append(stmts, stmt)
+	}
+
+	return stmts
+}
+
+func skipSQLComments(stmt string) string {
+	if stmt == "" {
+		return stmt
+	}
+
+	var buf strings.Builder
+	for line := range strings.SplitSeq(stmt, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "--") {
+			continue
+		}
+
+		if buf.Len() > 0 {
+			buf.WriteRune('\n')
+		}
+		buf.WriteString(line)
+	}
+
+	return buf.String()
 }
