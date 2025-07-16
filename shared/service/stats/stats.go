@@ -2,11 +2,13 @@ package stats
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/lnk.by/shared/db"
+	"github.com/lnk.by/shared/service"
 )
 
 type Event struct {
@@ -36,3 +38,28 @@ func Process(ctx context.Context, event Event) error {
 	slog.Info("Processing stats", "key", event.Key, "ts", event.Timestamp)
 	return db.BulkUpdateWithID(ctx, receivers, event, event.Key)
 }
+
+func (e *Event) FieldsPtrs() []any {
+	return []any{&e.Key}
+}
+
+func (e *Event) FieldsVals() []any {
+	return []any{e.Key}
+}
+
+func (e *Event) Validate() error {
+	if e.Key == "" {
+		return errors.New("key is required")
+	}
+
+	return nil
+}
+
+func (u *Event) Generate() {
+}
+
+var (
+	CreateTotalSQL  service.CreateSQL[*Event] = "INSERT INTO total_count (key) VALUES ($1)"
+	CreateDailySQL  service.CreateSQL[*Event] = "INSERT INTO daily_count (key) VALUES ($1)"
+	CreateHourlySQL service.CreateSQL[*Event] = "INSERT INTO hourly_count (key) VALUES ($1)"
+)
