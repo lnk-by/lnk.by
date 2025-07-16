@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -20,6 +21,7 @@ import (
 	"github.com/lnk.by/shared/service/customer"
 	"github.com/lnk.by/shared/service/organization"
 	"github.com/lnk.by/shared/service/shorturl"
+	"github.com/lnk.by/shared/service/stats"
 )
 
 const (
@@ -144,13 +146,31 @@ func jsonErrorHandler(c *gin.Context) {
 }
 
 func redirect(c *gin.Context) {
-	status, url, errStr := service.RetrieveValueAndMarshalError(c.Request.Context(), shorturl.RetrieveSQL, c.Param("id"))
+	key := c.Param("id")
+	status, url, errStr := service.RetrieveValueAndMarshalError(c.Request.Context(), shorturl.RetrieveSQL, key)
 	if errStr != "" {
 		respondWithJSON(c, status, errStr)
 		return
 	}
 
+	if err := sendStatistics(c, key); err != nil {
+		slog.Warn("Failed to send stats", "error", err)
+	}
+
 	c.Redirect(http.StatusFound, url.Target)
+}
+
+func sendStatistics(c *gin.Context, key string) error {
+	header := c.Request.Header
+	event := stats.Event{
+		Key:       key,
+		IP:        c.ClientIP(),
+		UserAgent: header.Get("user-agent"),
+		Referer:   header.Get("referer"),
+		Timestamp: time.Now().UTC(),
+		Language:  header.Get("accept-language"),
+	}
+	return stats.Process(c.Request.Context(), event)
 }
 
 func run() error {

@@ -34,14 +34,19 @@ on:
         type: boolean
         default: false
 
-      deploy_web:
-        description: "🌐 Manage web enabled static content"
+      deploy_user_customer:
+        description: "🙍‍♀️ Manage user-to-customer lambda?"
+        required: false
+        type: boolean
+        default: false
+      deploy_stats:
+        description: "📊 Manage stats lambda?"
         required: false
         type: boolean
         default: false
 
-      deploy_user_customer:
-        description: "🙍‍♀️ Manage user-to-customer lambda?"
+      deploy_web:
+        description: "🌐 Manage web enabled static content"
         required: false
         type: boolean
         default: false
@@ -54,7 +59,7 @@ on:
           - 🚀 Deploy
           - 🗑️ Remove
 
-run-name: "${{ github.event.inputs.operation }}: 🗂️:${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}, 🙍‍♀️:${{ github.event.inputs.deploy_user_customer }},	🌐:${{ github.event.inputs.deploy_web }}"
+run-name: "${{ github.event.inputs.operation }}: 🗂️:${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}, 🙍‍♀️:${{ github.event.inputs.deploy_user_customer }}, 📊:${{ github.event.inputs.deploy_stats }},🌐:${{ github.event.inputs.deploy_web }}"
 
 jobs:
   deploy-matrix:
@@ -99,10 +104,13 @@ jobs:
           cors_targets=$targets
         fi
         if [[ "${{ inputs.deploy_redirect }}" == "true" ]]; then
-          targets+="aws/redirect"
+          targets+="aws/redirect "
         fi
         if [[ "${{ inputs.deploy_user_customer }}" == "true" ]]; then
-          targets+="aws/user/created"
+          targets+="aws/user/created "
+        fi
+        if [[ "${{ inputs.deploy_stats }}" == "true" ]]; then
+          targets+="aws/stats/record "
         fi
 
         echo "cors_targets=$cors_targets"
