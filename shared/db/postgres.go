@@ -114,22 +114,27 @@ func splitSQLStatements(script string) ([]string, error) {
 	var stmts []string
 	var buf strings.Builder
 	var dollarQuotesCount int
+	var isInQuotes bool
 
 	for stmt := range strings.SplitSeq(script, ";") {
 		dollarQuotes := dollarQuotePattern.FindAllString(stmt, -1)
-		if dollarQuotes == nil {
+		dollarQuotesCount += len(dollarQuotes)
+		hasOpenQuotes := dollarQuotesCount%2 != 0
+
+		if !isInQuotes && !hasOpenQuotes {
 			stmts = appendSQL(stmts, stmt)
 			continue
 		}
 
 		buf.WriteString(stmt)
 
-		dollarQuotesCount += len(dollarQuotes)
-		if dollarQuotesCount%2 != 0 {
+		if hasOpenQuotes {
+			isInQuotes = true
 			buf.WriteRune(';')
 			continue
 		}
 
+		isInQuotes = false
 		stmts = appendSQL(stmts, buf.String())
 		buf.Reset()
 	}

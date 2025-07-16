@@ -188,6 +188,25 @@ asd`}
 	testSplitSQLStatements(t, script, expected)
 }
 
+func TestSplitSQLStatements_withDollarQuote_multiLinesWithSemicolon_2(t *testing.T) {
+	script := `select 1;
+bla
+$$
+foo;bar
+$$
+BLA;
+select 2;`
+	expected := []string{`select 1`,
+		`bla
+$$
+foo;bar
+$$
+BLA`,
+		`select 2`,
+	}
+	testSplitSQLStatements(t, script, expected)
+}
+
 func TestSplitSQLStatements_withDollarQuote_badScript(t *testing.T) {
 	script := `qwe $zzz$
 rty;
@@ -197,4 +216,30 @@ asd`
 	if assert.Error(t, err) {
 		assert.Equal(t, errInvalidScript, err)
 	}
+}
+
+func TestSplitSQLStatements_realScript(t *testing.T) {
+	script := `CREATE INDEX IF NOT EXISTS idx_customer_by_organization ON customer(organization_id);
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE INDEX IF NOT EXISTS idx_campaign_customer ON campaign(customer_id);
+`
+	expected := []string{`CREATE INDEX IF NOT EXISTS idx_customer_by_organization ON customer(organization_id)`,
+		`CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+NEW.updated_at = now();
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql`,
+		`CREATE INDEX IF NOT EXISTS idx_campaign_customer ON campaign(customer_id)`,
+	}
+	testSplitSQLStatements(t, script, expected)
 }
