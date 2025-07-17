@@ -476,3 +476,40 @@ CREATE TABLE IF NOT EXISTS hourly_count (
 	hour23 INT NOT NULL DEFAULT 0,
 	hour24 INT NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS useragent_count (
+    key VARCHAR(32) PRIMARY KEY,
+
+    -- Device types
+    device_desktop INT NOT NULL DEFAULT 0,
+    device_tablet INT NOT NULL DEFAULT 0,
+    device_mobile INT NOT NULL DEFAULT 0,
+    device_bot INT NOT NULL DEFAULT 0,
+    device_other INT NOT NULL DEFAULT 0,
+
+    -- Operating systems
+    os_windows INT NOT NULL DEFAULT 0,
+    os_linux INT NOT NULL DEFAULT 0,
+    os_macos INT NOT NULL DEFAULT 0,
+    os_ios INT NOT NULL DEFAULT 0,
+    os_android INT NOT NULL DEFAULT 0,
+    os_other INT NOT NULL DEFAULT 0,
+
+    -- Browsers
+    browser_chrome INT NOT NULL DEFAULT 0,
+    browser_opera INT NOT NULL DEFAULT 0,
+    browser_internet_exporer INT NOT NULL DEFAULT 0,
+    browser_edge INT NOT NULL DEFAULT 0,
+    browser_firefox INT NOT NULL DEFAULT 0,
+    browser_other INT NOT NULL DEFAULT 0,
+
+    -- Device + OS combinations
+    desktop_windows INT NOT NULL DEFAULT 0,
+    desktop_linux INT NOT NULL DEFAULT 0,
+    desktop_macos INT NOT NULL DEFAULT 0,
+    tablet_windows INT NOT NULL DEFAULT 0,
+    tablet_linux INT NOT NULL DEFAULT 0,
+    tablet_ios INT NOT NULL DEFAULT 0,
+    mobile_android INT NOT NULL DEFAULT 0,
+    mobile_ios INT NOT NULL DEFAULT 0
+);

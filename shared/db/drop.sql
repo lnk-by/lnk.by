@@ -6,10 +6,18 @@ DROP INDEX IF EXISTS idx_campaign_org;
 
 DROP INDEX IF EXISTS idx_shorturl_campaign;
 
-DROP TABLE IF EXISTS shorturl CASCADE;
+DROP TABLE IF EXISTS shorturl;
 
-DROP TABLE IF EXISTS campaign CASCADE;
+DROP TABLE IF EXISTS campaign;
 
-DROP TABLE IF EXISTS organization CASCADE;
+DROP TABLE IF EXISTS organization;
 
-DROP TABLE IF EXISTS customer CASCADE;
+DROP TABLE IF EXISTS customer;
+
+DROP TABLE IF EXISTS total_count;
+
+DROP TABLE IF EXISTS daily_count;
+
+DROP TABLE IF EXISTS hourly_count;
+
+DROP TABLE IF EXISTS useragent_count;
