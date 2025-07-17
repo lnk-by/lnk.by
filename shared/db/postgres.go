@@ -2,9 +2,11 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -77,7 +79,11 @@ func RunScript(ctx context.Context, path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read SQL file: %w", err)
 	}
-	queries := strings.Split(string(content), ";")
+
+	queries, err := splitSQLStatements(string(content))
+	if err != nil {
+		return fmt.Errorf("failed to parse SQL script: %w", err)
+	}
 
 	conn, err := Get(ctx)
 	if err != nil {
@@ -98,4 +104,73 @@ func RunScript(ctx context.Context, path string) error {
 	}
 
 	return nil
+}
+
+var dollarQuotePattern = regexp.MustCompile(`\$\w*\$`)
+
+var errInvalidScript = errors.New("invalid script: unmatched dollar quotes")
+
+func splitSQLStatements(script string) ([]string, error) {
+	var stmts []string
+	var buf strings.Builder
+	var dollarQuotesCount int
+	var isInQuotes bool
+
+	for stmt := range strings.SplitSeq(script, ";") {
+		dollarQuotes := dollarQuotePattern.FindAllString(stmt, -1)
+		dollarQuotesCount += len(dollarQuotes)
+		hasOpenQuotes := dollarQuotesCount%2 != 0
+
+		if !isInQuotes && !hasOpenQuotes {
+			stmts = appendSQL(stmts, stmt)
+			continue
+		}
+
+		buf.WriteString(stmt)
+
+		if hasOpenQuotes {
+			isInQuotes = true
+			buf.WriteRune(';')
+			continue
+		}
+
+		isInQuotes = false
+		stmts = appendSQL(stmts, buf.String())
+		buf.Reset()
+	}
+
+	if buf.Len() > 0 {
+		return nil, errInvalidScript
+	}
+
+	return stmts, nil
+}
+
+func appendSQL(stmts []string, stmt string) []string {
+	if stmt := skipSQLComments(stmt); len(stmt) > 0 {
+		stmts = append(stmts, stmt)
+	}
+
+	return stmts
+}
+
+func skipSQLComments(stmt string) string {
+	if stmt == "" {
+		return stmt
+	}
+
+	var buf strings.Builder
+	for line := range strings.SplitSeq(stmt, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "--") {
+			continue
+		}
+
+		if buf.Len() > 0 {
+			buf.WriteRune('\n')
+		}
+		buf.WriteString(line)
+	}
+
+	return buf.String()
 }
