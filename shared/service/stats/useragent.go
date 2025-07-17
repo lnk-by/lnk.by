@@ -6,7 +6,7 @@ import (
 	"github.com/mileusna/useragent"
 )
 
-func useragentParser(e Event) string {
+func updateUserAgentBasedStatistics(e Event) string {
 	ua := useragent.Parse(e.UserAgent)
 	return fmt.Sprintf(`
 			UPDATE useragent_count SET 
@@ -41,21 +41,22 @@ func useragentParser(e Event) string {
 				mobile_ios = mobile_ios + %d
 			WHERE key = $1`,
 		// device
-		incr(ua.Desktop), incr(ua.Tablet), incr(ua.Mobile), incr(ua.Bot), incr(!(ua.Desktop || ua.Tablet || ua.Mobile || ua.Bot)),
+		b2i(ua.Desktop), b2i(ua.Tablet), b2i(ua.Mobile), b2i(ua.Bot), b2i(!(ua.Desktop || ua.Tablet || ua.Mobile || ua.Bot)),
 		// OS
-		incr(ua.IsWindows()), incr(ua.IsLinux()), incr(ua.IsMacOS()), incr(ua.IsIOS()), incr(ua.IsAndroid()),
-		incr(!(ua.IsWindows() || ua.IsLinux() || ua.IsMacOS() || ua.IsIOS() || ua.IsAndroid())),
+		b2i(ua.IsWindows()), b2i(ua.IsLinux()), b2i(ua.IsMacOS()), b2i(ua.IsIOS()), b2i(ua.IsAndroid()),
+		b2i(!(ua.IsWindows() || ua.IsLinux() || ua.IsMacOS() || ua.IsIOS() || ua.IsAndroid())),
 		// Browser
-		incr(ua.IsChrome()), incr(ua.IsOpera() || ua.IsOperaMini()), incr(ua.IsInternetExplorer()), incr(ua.IsEdge()), incr(ua.IsFirefox()),
-		incr(!(ua.IsChrome() || ua.IsOpera() || ua.IsOperaMini() || ua.IsInternetExplorer() || ua.IsEdge() || ua.IsFirefox())),
+		b2i(ua.IsChrome()), b2i(ua.IsOpera() || ua.IsOperaMini()), b2i(ua.IsInternetExplorer()), b2i(ua.IsEdge()), b2i(ua.IsFirefox()),
+		b2i(!(ua.IsChrome() || ua.IsOpera() || ua.IsOperaMini() || ua.IsInternetExplorer() || ua.IsEdge() || ua.IsFirefox())),
 
-		incr(ua.Desktop && ua.IsWindows()), incr(ua.Desktop && ua.IsLinux()), incr(ua.Desktop && ua.IsMacOS()),
-		incr(ua.Tablet && ua.IsWindows()), incr(ua.Tablet && ua.IsLinux()), incr(ua.Tablet && ua.IsIOS()),
-		incr(ua.Mobile && ua.IsAndroid()), incr(ua.Mobile && ua.IsIOS()),
+		b2i(ua.Desktop && ua.IsWindows()), b2i(ua.Desktop && ua.IsLinux()), b2i(ua.Desktop && ua.IsMacOS()),
+		b2i(ua.Tablet && ua.IsWindows()), b2i(ua.Tablet && ua.IsLinux()), b2i(ua.Tablet && ua.IsIOS()),
+		b2i(ua.Mobile && ua.IsAndroid()), b2i(ua.Mobile && ua.IsIOS()),
 	)
 }
 
-func incr(f bool) int {
+// b2i translates boolean to int: true->1, false->0
+func b2i(f bool) int {
 	if f {
 		return 1
 	}

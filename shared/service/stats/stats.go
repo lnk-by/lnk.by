@@ -32,7 +32,7 @@ var receivers []func(Event) string = []func(Event) string{
 		columnName := fmt.Sprintf("hour%02d", e.Timestamp.Hour())
 		return fmt.Sprintf("UPDATE hourly_count SET %[1]s = %[1]s + 1 WHERE key = $1", columnName)
 	},
-	useragentParser,
+	updateUserAgentBasedStatistics,
 }
 
 func Process(ctx context.Context, event Event) error {
