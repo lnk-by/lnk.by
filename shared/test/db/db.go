@@ -89,9 +89,7 @@ func truncateTable(t *testing.T, table string) {
 
 func WithTable(t *testing.T, table string, f func()) {
 	truncateTable(t, table)
-	defer func() {
-		truncateTable(t, table)
-	}()
+	defer truncateTable(t, table)
 
 	f()
 }

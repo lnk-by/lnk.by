@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS organization (
-	id VARCHAR(36) PRIMARY KEY,
+	id UUID PRIMARY KEY,
 	name VARCHAR(255) NOT NULL,
 	status VARCHAR(16) CHECK (status IN ('active', 'cancelled', 'deleted')),
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -7,22 +7,22 @@ CREATE TABLE IF NOT EXISTS organization (
 );
 
 CREATE TABLE IF NOT EXISTS customer (
-	id VARCHAR(36) PRIMARY KEY,
+	id UUID PRIMARY KEY,
 	email VARCHAR(255) NOT NULL,
 	name VARCHAR(255) NOT NULL,
-    organization_id VARCHAR(36) REFERENCES organization(id),
+    organization_id UUID REFERENCES organization(id),
 	status VARCHAR(16) CHECK (status IN ('active', 'cancelled', 'deleted')),
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS campaign (
-	id VARCHAR(36) PRIMARY KEY,
+	id UUID PRIMARY KEY,
 	name VARCHAR(255) NOT NULL,
     valid_from TIMESTAMPTZ NOT NULL DEFAULT now(),
     valid_until TIMESTAMPTZ NOT NULL DEFAULT '2050-01-01 00:00:00+00',
-	organization_id VARCHAR(36) REFERENCES organization(id),
-	customer_id VARCHAR(36) REFERENCES customer(id),
+	organization_id UUID REFERENCES organization(id),
+	customer_id UUID REFERENCES customer(id),
 	status VARCHAR(16) CHECK (status IN ('active', 'cancelled', 'deleted')),
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -34,8 +34,8 @@ CREATE TABLE IF NOT EXISTS shorturl (
 	target VARCHAR(2048) NOT NULL,
     valid_from TIMESTAMPTZ NOT NULL DEFAULT now(),
     valid_until TIMESTAMPTZ NOT NULL DEFAULT '2050-01-01 00:00:00+00',
-	campaign_id VARCHAR(36) REFERENCES campaign(id),
-	customer_id VARCHAR(36) REFERENCES customer(id),
+	campaign_id UUID REFERENCES campaign(id),
+	customer_id UUID REFERENCES customer(id),
 	status VARCHAR(16) CHECK (status IN ('active', 'cancelled', 'deleted')),
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

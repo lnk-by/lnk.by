@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/gofrs/uuid"
 	"github.com/lnk.by/aws/adapter"
 	"github.com/lnk.by/shared/service"
 	"github.com/lnk.by/shared/service/customer"
@@ -17,7 +18,7 @@ func createCustomerFromUser(ctx context.Context, event events.CognitoEventUserPo
 	email := event.Request.UserAttributes["email"]
 
 	c := customer.Customer{
-		ID:     id,
+		ID:     uuid.Must(uuid.FromString(id)),
 		Email:  email,
 		Name:   event.UserName,
 		Status: utils.StatusActive,
@@ -30,7 +31,6 @@ func createCustomerFromUser(ctx context.Context, event events.CognitoEventUserPo
 	}
 
 	return event, nil
-
 }
 
 func main() {

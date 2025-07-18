@@ -1,4 +1,4 @@
-package customer
+package organization
 
 import (
 	"context"
@@ -24,23 +24,20 @@ func TestMain(m *testing.M) {
 }
 
 func TestListEmpty(t *testing.T) {
-	db.WithTable(t, "customer", func() {
-		customers := service.List(t, ListSQL, 0, 10)
-		assert.Equal(t, 0, len(customers))
+	db.WithTable(t, "organization", func() {
+		organizations := service.List(t, ListSQL, 0, 10)
+		assert.Equal(t, 0, len(organizations))
 	})
 }
 
 func TestCRUDL(t *testing.T) {
-	email := "adam@human.net"
-	email2 := "adam@robot.net"
-	name := "Adam"
-	adam := Customer{Email: email, Name: name}
+	name := "HornsAndHooves"
+	name2 := "HoovesAndHorns"
+	adam := Organization{Name: name}
 
-	db.WithTable(t, "customer", func() {
+	db.WithTable(t, "organization", func() {
 		created := service.Create(t, CreateSQL, &adam)
-		assert.Equal(t, email, created.Email)
 		assert.Equal(t, name, created.Name)
-		assert.Nil(t, created.OrganizationID)
 		assert.Equal(t, utils.StatusActive, created.Status)
 
 		retrieved := service.Retrieve(t, RetrieveSQL, created.ID.String())
@@ -48,13 +45,11 @@ func TestCRUDL(t *testing.T) {
 
 		id := retrieved.ID
 		retrieved.ID = uuid.Nil
-		retrieved.Email = email2
+		retrieved.Name = name2
 
 		updated := service.Update(t, UpdateSQL, id.String(), retrieved)
 		assert.Equal(t, id, updated.ID)
-		assert.Equal(t, email2, updated.Email)
-		assert.Equal(t, name, updated.Name)
-		assert.Nil(t, updated.OrganizationID)
+		assert.Equal(t, name2, updated.Name)
 		assert.Equal(t, utils.StatusActive, updated.Status)
 
 		listed := service.List(t, ListSQL, 0, 10)
