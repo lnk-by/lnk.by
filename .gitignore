@@ -33,4 +33,4 @@ profile.cov
 # OS files
 .DS_Store
 Thumbs.db
-
+*.mmdb

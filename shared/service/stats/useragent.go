@@ -1,12 +1,13 @@
 package stats
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/mileusna/useragent"
 )
 
-func updateUserAgentBasedStatistics(e Event) string {
+func updateUserAgentBasedStatistics(ctx context.Context, e Event) string {
 	ua := useragent.Parse(e.UserAgent)
 	return fmt.Sprintf(`
 			UPDATE useragent_count SET 

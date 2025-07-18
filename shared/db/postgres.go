@@ -106,7 +106,6 @@ func RunScript(ctx context.Context, path string) error {
 	return nil
 }
 
-<<<<<<< HEAD
 var dollarQuotePattern = regexp.MustCompile(`\$\w*\$`)
 
 var errInvalidScript = errors.New("invalid script: unmatched dollar quotes")
@@ -178,7 +177,7 @@ func skipSQLComments(stmt string) string {
 
 func BulkUpdateWithID[T any](
 	ctx context.Context,
-	receivers []func(T) string,
+	receivers []func(context.Context, T) string,
 	t T,
 	id string,
 ) error {
@@ -194,7 +193,7 @@ func BulkUpdateWithID[T any](
 	defer tx.Rollback(ctx)
 
 	for _, receiver := range receivers {
-		_, err = tx.Exec(ctx, receiver(t), id) // `$1` will be replaced with `id`
+		_, err = tx.Exec(ctx, receiver(ctx, t), id) // `$1` will be replaced with `id`
 		if err != nil {
 			return fmt.Errorf("failed to execute statement: %w", err)
 		}

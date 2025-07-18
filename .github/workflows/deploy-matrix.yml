@@ -156,6 +156,22 @@ jobs:
       run: go mod tidy
       if: ${{ endsWith(inputs.operation, 'Deploy') }}
 
+    - name: Cache GeoLite2 DB
+      id: geoip-cache
+      uses: actions/cache@v4
+      if: ${{ inputs.deploy_stats == 'true' }}
+      with:
+        path: mmdb
+        key: geolite2-${{ runner.os }}-${{ hashFiles('GeoLite2-Country.tar.gz') }}
+
+    - name: Download GeoLite2 Country DB (if not cached)
+      if: ${{ inputs.deploy_stats == 'true' && steps.geoip-cache.outputs.cache-hit != 'true' }}
+      run: |
+        curl -L -o GeoLite2-Country.tar.gz \
+          "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${{ secrets.MAXMIND_LICENSE_KEY }}&suffix=tar.gz"
+        mkdir -p mmdb
+        tar --strip-components=1 -xzf GeoLite2-Country.tar.gz -C mmdb
+
     - name: Build All Lambdas
       if: ${{ endsWith(inputs.operation, 'Deploy') }}
       run: |
@@ -164,7 +180,11 @@ jobs:
         for lambda in $targets; do
           out_name=$(echo "$lambda" | sed 's|/|_|g')
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bootstrap "./${lambda}/main.go"
-          zip -j "artifacts/${out_name}.zip" bootstrap
+          if [ "$out_name" = "aws_stats_record" ]; then
+            zip -j "artifacts/${out_name}.zip" bootstrap mmdb/GeoLite2-Country.mmdb
+          else
+            zip -j "artifacts/${out_name}.zip" bootstrap
+          fi
         done
 
     - name: Upload Artifacts
