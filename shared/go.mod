@@ -8,6 +8,7 @@ require (
 	github.com/fergusstrange/embedded-postgres v1.31.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/jackc/pgx/v5 v5.7.5
+	github.com/mileusna/useragent v1.3.5
 	github.com/stretchr/testify v1.10.0
 )
 
