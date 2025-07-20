@@ -34,7 +34,7 @@ func CreateShortURL(ctx context.Context, request events.APIGatewayV2HTTPRequest)
 	}
 
 	e := stats.Event{Key: url.Key}
-	createSQLs := []service.CreateSQL[*stats.Event]{stats.CreateTotalSQL, stats.CreateTotalSQL, stats.CreateTotalSQL}
+	createSQLs := []service.CreateSQL[*stats.Event]{stats.CreateTotalSQL, stats.CreateDailySQL, stats.CreateHourlySQL, stats.CreateUserAgentSQL, stats.CreateCountrySQL}
 	for _, sql := range createSQLs {
 		status, body := service.CreateRecord(ctx, sql, &e, 0)
 		if status >= http.StatusBadRequest {

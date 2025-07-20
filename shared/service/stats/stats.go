@@ -20,19 +20,20 @@ type Event struct {
 	Language  string    `json:"language,omitempty"`
 }
 
-var receivers []func(Event) string = []func(Event) string{
-	func(e Event) string {
+var receivers []func(context.Context, Event) string = []func(context.Context, Event) string{
+	func(ctx context.Context, e Event) string {
 		return "UPDATE total_count SET total = total + 1 WHERE key = $1"
 	},
-	func(e Event) string {
+	func(ctx context.Context, e Event) string {
 		columnName := fmt.Sprintf("day%03d", e.Timestamp.YearDay())
 		return fmt.Sprintf("UPDATE daily_count SET %[1]s = %[1]s + 1 WHERE key = $1", columnName)
 	},
-	func(e Event) string {
+	func(ctx context.Context, e Event) string {
 		columnName := fmt.Sprintf("hour%02d", e.Timestamp.Hour())
 		return fmt.Sprintf("UPDATE hourly_count SET %[1]s = %[1]s + 1 WHERE key = $1", columnName)
 	},
 	updateUserAgentBasedStatistics,
+	geoFactory(ipToCountry),
 }
 
 func Process(ctx context.Context, event Event) error {
@@ -60,7 +61,9 @@ func (u *Event) Generate() {
 }
 
 var (
-	CreateTotalSQL  service.CreateSQL[*Event] = "INSERT INTO total_count (key) VALUES ($1)"
-	CreateDailySQL  service.CreateSQL[*Event] = "INSERT INTO daily_count (key) VALUES ($1)"
-	CreateHourlySQL service.CreateSQL[*Event] = "INSERT INTO hourly_count (key) VALUES ($1)"
+	CreateTotalSQL     service.CreateSQL[*Event] = "INSERT INTO total_count (key) VALUES ($1)"
+	CreateDailySQL     service.CreateSQL[*Event] = "INSERT INTO daily_count (key) VALUES ($1)"
+	CreateHourlySQL    service.CreateSQL[*Event] = "INSERT INTO hourly_count (key) VALUES ($1)"
+	CreateUserAgentSQL service.CreateSQL[*Event] = "INSERT INTO useragent_count (key) VALUES ($1)"
+	CreateCountrySQL   service.CreateSQL[*Event] = "INSERT INTO country_count (key) VALUES ($1)"
 )
