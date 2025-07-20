@@ -77,6 +77,8 @@ on:
         required: true
       DB_PASSWORD:
         required: true
+      MAXMIND_LICENSE_KEY:
+        required: true
 
 run-name: >
   ${{ github.event_name == 'workflow_dispatch' && format('{0} {1}Lambda {2}', github.event.inputs.operation, github.event.inputs.manage == 'CORS' && 'CORS for ' || '', github.event.inputs.lambda_name) ||
@@ -98,6 +100,7 @@ jobs:
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       AWS_AUTHORIZER_ID: ${{ vars.AWS_AUTHORIZER_ID }}
       AWS_USER_POOL_ID: ${{ vars.AWS_USER_POOL_ID }}
+      MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -244,7 +247,7 @@ jobs:
         echo "✅ Lambda for Congnito removal is done"
 
     - name: Remove Stats Invocation
-      if: ${{ endsWith(inputs.operation, 'Remove') && env.lambda_path == 'aws/stats/record' }}
+      if: ${{ endsWith(inputs.operation, 'Remove') && inputs.lambda_name == 'aws/stats/record' }}
       run: |
         set +e
         out_name="${out_name}"
@@ -253,13 +256,32 @@ jobs:
 
     - name: Checkout
       uses: actions/checkout@v4
-      if: ${{ endsWith(inputs.operation, 'Deploy') && inputs.do_build == 'false' }}
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
 
     - name: Download Artifacts
       uses: actions/download-artifact@v4
-      if: ${{ endsWith(inputs.operation, 'Deploy') && inputs.do_build == 'false' }}
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
       with:
         name: lambdas
+
+    - name: Cache GeoLite2 DB
+      id: geoip-cache
+      uses: actions/cache@v4
+      if: ${{ endsWith(inputs.operation, 'Deploy') && inputs.manage == 'Lambda' && inputs.lambda_name == 'aws/stats/record' }}
+      with:
+        path: GeoLite2-Country.tar.gz
+        key: geolite2-tgz-${{ runner.os }}-${{ hashFiles('GeoLite2-Country.tar.gz') }}
+
+    - name: Download GeoLite2 Country DB (if not cached)
+      if: ${{ endsWith(inputs.operation, 'Deploy') && inputs.manage == 'Lambda' && inputs.lambda_name == 'aws/stats/record' && steps.geoip-cache.outputs.cache-hit != 'true' }}
+      env:
+        MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
+      run: |
+        curl -L -o GeoLite2-Country.tar.gz \
+          "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"
+        mkdir -p mmdb
+        tar --strip-components=1 -xzf GeoLite2-Country.tar.gz -C mmdb
+
 
     - name: Deploy Lambda
       if: ${{ endsWith(inputs.operation, 'Deploy') && inputs.manage == 'Lambda' }}
@@ -269,8 +291,13 @@ jobs:
 
         if [[ ! -f "${out_name}.zip" ]]; then
           echo "🔧 Building Lambda..."
+          echo "compiling ./$lambda_path/main.go" 
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bootstrap "./$lambda_path/main.go"
-          zip -j "${out_name}.zip" bootstrap
+          if [ "$out_name" = "aws_stats_record" ]; then
+            zip -j "artifacts/${out_name}.zip" bootstrap mmdb/GeoLite2-Country.mmdb
+          else
+            zip -j "artifacts/${out_name}.zip" bootstrap
+          fi
         else
           echo "✅ Reusing existing artifact: ${out_name}.zip"
         fi

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"math"
@@ -22,6 +23,7 @@ import (
 	"github.com/lnk.by/shared/service/organization"
 	"github.com/lnk.by/shared/service/shorturl"
 	"github.com/lnk.by/shared/service/stats"
+	"github.com/lnk.by/shared/service/stats/maxmind"
 )
 
 const (
@@ -112,6 +114,16 @@ func respondWithJSON(c *gin.Context, statusCode int, jsonStr string) {
 	c.Header(contentTypeHeader, contentTypeJSON)
 	c.Header(accessControlAllowOriginHeader, allowAnyOrigin)
 	c.String(statusCode, jsonStr)
+}
+
+func createShortURL(c *gin.Context) {
+	requestBody, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		respondWithJSON(c, http.StatusInternalServerError, fmt.Sprintf("{\"error\": %s}", fmt.Errorf("failed to read request body: %w", err)))
+		return
+	}
+	status, responseBody := shorturl.CreateShortURL(c.Request.Context(), requestBody)
+	respondWithJSON(c, status, responseBody)
 }
 
 var (
@@ -206,6 +218,9 @@ func run() error {
 
 	if err := initDbConnection(); err != nil {
 		return fmt.Errorf("failed to init DB connnection: %w", err)
+	}
+	if err := maxmind.Init(); err != nil {
+		slog.Error("Failed to intialize mixmind", "error", err)
 	}
 
 	if err := router.Run(":8080"); err != nil {

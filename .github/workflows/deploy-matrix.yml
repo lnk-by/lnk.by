@@ -64,6 +64,7 @@ run-name: "${{ github.event.inputs.operation }}: 🗂️:${{ github.event.inputs
 jobs:
   deploy-matrix:
     runs-on: ubuntu-latest
+    environment: 'PRODUCTION'
     outputs:
       lambda_names: ${{ steps.set-targets.outputs.lambda_names }}
       cors_lambda_names: ${{ steps.set-targets.outputs.cors_lambda_names }}
@@ -156,19 +157,26 @@ jobs:
       run: go mod tidy
       if: ${{ endsWith(inputs.operation, 'Deploy') }}
 
-    - name: Cache GeoLite2 DB
+    - name: Cache GeoLite2 Tarball
       id: geoip-cache
       uses: actions/cache@v4
-      if: ${{ inputs.deploy_stats == 'true' }}
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
       with:
-        path: mmdb
-        key: geolite2-${{ runner.os }}-${{ hashFiles('GeoLite2-Country.tar.gz') }}
+        path: GeoLite2-Country.tar.gz
+        key: geolite2-tgz-${{ runner.os }}-${{ hashFiles('GeoLite2-Country.tar.gz') }}
 
-    - name: Download GeoLite2 Country DB (if not cached)
-      if: ${{ inputs.deploy_stats == 'true' && steps.geoip-cache.outputs.cache-hit != 'true' }}
+    - name: Download GeoLite2 if not cached
+      if: ${{ endsWith(inputs.operation, 'Deploy') && steps.geoip-cache.outputs.cache-hit != 'true' }}
+      env:
+        MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
       run: |
+        echo "license_key=${MAXMIND_LICENSE_KEY}"
         curl -L -o GeoLite2-Country.tar.gz \
-          "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${{ secrets.MAXMIND_LICENSE_KEY }}&suffix=tar.gz"
+          "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${MAXMIND_LICENSE_KEY}&suffix=tar.gz"
+
+    - name: Extract GeoLite2
+      if: ${{ endsWith(inputs.operation, 'Deploy') }}
+      run: |
         mkdir -p mmdb
         tar --strip-components=1 -xzf GeoLite2-Country.tar.gz -C mmdb
 
@@ -179,6 +187,7 @@ jobs:
         mkdir artifacts
         for lambda in $targets; do
           out_name=$(echo "$lambda" | sed 's|/|_|g')
+          echo "compiling ./${lambda}/main.go" 
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bootstrap "./${lambda}/main.go"
           if [ "$out_name" = "aws_stats_record" ]; then
             zip -j "artifacts/${out_name}.zip" bootstrap mmdb/GeoLite2-Country.mmdb
@@ -214,6 +223,7 @@ jobs:
       DB_URL: ${{ secrets.DB_URL }}
       DB_USER: ${{ secrets.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
 
   call-deploy-cors:
     needs:
@@ -236,6 +246,7 @@ jobs:
       DB_URL: ${{ secrets.DB_URL }}
       DB_USER: ${{ secrets.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
 
   deploy-web:
     if: ${{ github.event.inputs.deploy_web == 'true' }}

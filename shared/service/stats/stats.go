@@ -9,6 +9,7 @@ import (
 
 	"github.com/lnk.by/shared/db"
 	"github.com/lnk.by/shared/service"
+	"github.com/lnk.by/shared/service/stats/maxmind"
 )
 
 type Event struct {
@@ -33,7 +34,7 @@ var receivers []func(context.Context, Event) string = []func(context.Context, Ev
 		return fmt.Sprintf("UPDATE hourly_count SET %[1]s = %[1]s + 1 WHERE key = $1", columnName)
 	},
 	updateUserAgentBasedStatistics,
-	geoFactory(ipToCountry),
+	geoFactory(maxmind.IPToCountry),
 }
 
 func Process(ctx context.Context, event Event) error {
