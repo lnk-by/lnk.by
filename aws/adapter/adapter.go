@@ -13,16 +13,13 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/lnk.by/shared/db"
 	"github.com/lnk.by/shared/service"
+	"github.com/lnk.by/shared/service/shorturl"
+	"github.com/lnk.by/shared/service/stats"
 )
 
 var standardHeaders = map[string]string{
 	"Content-Type":                "application/json",
 	"Access-Control-Allow-Origin": "*",
-}
-
-func Create[T service.Creatable](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.CreateSQL[T]) events.APIGatewayV2HTTPResponse {
-	status, body := service.Create(ctx, sql, []byte(request.Body))
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
 func CreateShortURL(ctx context.Context, request events.APIGatewayV2HTTPRequest) events.APIGatewayV2HTTPResponse {
@@ -44,7 +41,12 @@ func CreateShortURL(ctx context.Context, request events.APIGatewayV2HTTPRequest)
 	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
-func Retrieve[T service.FieldsPtrsAware](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.RetrieveSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
+func Create[T service.Creatable](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.CreateSQL[T]) events.APIGatewayV2HTTPResponse {
+	status, body := service.Create(ctx, sql, []byte(request.Body))
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
+}
+
+func Retrieve[K any, T service.Retrievable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.RetrieveSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
 	status, body := service.Retrieve(ctx, sql, request.PathParameters[idParam])
 	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
