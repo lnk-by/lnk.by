@@ -5,10 +5,17 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/lnk.by/aws/adapter"
+	shorturlservice "github.com/lnk.by/shared/service/shorturl"
 )
 
+var standardHeaders = map[string]string{
+	"Content-Type":                "application/json",
+	"Access-Control-Allow-Origin": "*",
+}
+
 func createShortURL(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	return adapter.CreateShortURL(ctx, request), nil
+	status, body := shorturlservice.CreateShortURL(ctx, []byte(request.Body))
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}, nil
 }
 
 func main() {

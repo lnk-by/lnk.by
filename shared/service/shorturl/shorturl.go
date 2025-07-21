@@ -1,12 +1,15 @@
 package shorturl
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/lnk.by/shared/service"
+	"github.com/lnk.by/shared/service/stats"
 	"github.com/lnk.by/shared/utils"
 )
 
@@ -81,3 +84,23 @@ var (
 	DeleteSQL   service.DeleteSQL[*ShortURL]   = "DELETE FROM shorturl WHERE key = $1"
 	ListSQL     service.ListSQL[*ShortURL]     = "SELECT key, is_custom, target, COALESCE(campaign_id, ''), COALESCE(customer_id, ''), status FROM shorturl WHERE status='active' OFFSET $1 LIMIT $2"
 )
+
+func CreateShortURL(ctx context.Context, requestBody []byte) (int, string) {
+	url, err := service.Parse[*ShortURL](ctx, requestBody)
+	if err != nil {
+		return http.StatusBadRequest, http.StatusText(http.StatusBadRequest)
+	}
+
+	status, body := service.CreateRecord(ctx, CreateSQL, url, 0)
+
+	e := stats.Event{Key: url.Key}
+	createSQLs := []service.CreateSQL[*stats.Event]{stats.CreateTotalSQL, stats.CreateDailySQL, stats.CreateHourlySQL, stats.CreateUserAgentSQL, stats.CreateCountrySQL}
+	for _, sql := range createSQLs {
+		status, body := service.CreateRecord(ctx, sql, &e, 0)
+		if status >= http.StatusBadRequest {
+			return status, body
+		}
+	}
+
+	return status, body
+}
