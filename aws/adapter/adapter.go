@@ -13,32 +13,11 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/lnk.by/shared/db"
 	"github.com/lnk.by/shared/service"
-	"github.com/lnk.by/shared/service/shorturl"
-	"github.com/lnk.by/shared/service/stats"
 )
 
 var standardHeaders = map[string]string{
 	"Content-Type":                "application/json",
 	"Access-Control-Allow-Origin": "*",
-}
-
-func CreateShortURL(ctx context.Context, request events.APIGatewayV2HTTPRequest) events.APIGatewayV2HTTPResponse {
-	url, err := service.Parse[*shorturl.ShortURL](ctx, []byte(request.Body))
-	if err != nil {
-		return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusBadRequest, Body: http.StatusText(http.StatusBadRequest), Headers: standardHeaders}
-	}
-
-	e := stats.Event{Key: url.Key}
-	createSQLs := []service.CreateSQL[*stats.Event]{stats.CreateTotalSQL, stats.CreateDailySQL, stats.CreateHourlySQL, stats.CreateUserAgentSQL, stats.CreateCountrySQL}
-	for _, sql := range createSQLs {
-		status, body := service.CreateRecord(ctx, sql, &e, 0)
-		if status >= http.StatusBadRequest {
-			return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
-		}
-	}
-
-	status, body := service.CreateRecord(ctx, shorturl.CreateSQL, url, 0)
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 
 func Create[T service.Creatable](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.CreateSQL[T]) events.APIGatewayV2HTTPResponse {
