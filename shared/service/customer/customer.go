@@ -2,6 +2,7 @@ package customer
 
 import (
 	"errors"
+
 	"github.com/gofrs/uuid"
 
 	"github.com/lnk.by/shared/service"
@@ -58,5 +59,12 @@ var (
 	RetrieveSQL service.RetrieveSQL[*Customer] = "SELECT id, email, name, organization_id, status FROM customer WHERE id = $1 AND status='active'"
 	UpdateSQL   service.UpdateSQL[*Customer]   = "UPDATE customer SET email = $2, name = $3, organization_id = $4, status = $5 WHERE id = $1"
 	DeleteSQL   service.DeleteSQL[*Customer]   = "DELETE FROM customer WHERE id = $1"
-	ListSQL     service.ListSQL[*Customer]     = "SELECT id, email, name, organization_id, status FROM customer WHERE status='active' OFFSET $1 LIMIT $2"
+	// Right now select all customers that belong to the same organization together with the currently logged in customer.
+	ListSQL service.ListSQL[*Customer] = `
+		SELECT c.id, c.email, c.name, c.organization_id, c.status
+		FROM customer c
+		JOIN customer me ON me.id = $1
+		WHERE c.status = 'active' AND c.organization_id = me.organization_id
+		OFFSET $2 LIMIT $3
+	`
 )
