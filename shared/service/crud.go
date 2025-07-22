@@ -122,7 +122,12 @@ func isDuplicateKeyError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "duplicate key")
 }
 
-type FieldsPtrsAware interface {
+type Identifiable[K any] interface {
+	ParseID(string) (K, error)
+}
+
+type Retrievable[K any] interface {
+	Identifiable[K]
 	FieldsPtrs() []any
 }
 
@@ -130,7 +135,7 @@ func inst[T any]() T {
 	return reflect.New(reflect.TypeFor[T]().Elem()).Interface().(T)
 }
 
-func Retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
+func Retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
 	return marshal(retrieve(ctx, retrieveSQL, id))
 }
 
@@ -149,8 +154,8 @@ func marshal[T any](status int, t T, err error) (int, string) {
 	return status, string(jsonBytes)
 }
 
-func RetrieveValueAndMarshalError[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, T, string) {
-	status, value, err := retrieve(ctx, retrieveSQL, id)
+func RetrieveValueAndMarshalError[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], idString string) (int, T, string) {
+	status, value, err := retrieve(ctx, retrieveSQL, idString)
 	if err != nil {
 		_, strErr := failed(status, err)
 		return status, value, strErr
@@ -159,17 +164,22 @@ func RetrieveValueAndMarshalError[T FieldsPtrsAware](ctx context.Context, retrie
 	return status, value, ""
 }
 
-func retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, T, error) {
+func retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], idString string) (int, T, error) {
+	t := inst[T]()
+	id, err := t.ParseID(idString)
+	if err != nil {
+		return http.StatusNotFound, t, fmt.Errorf("failed to parse %T ID: %v: %w", t, idString, err)
+	}
+
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
-		t := inst[T]()
 		if err := conn.QueryRow(ctx, string(retrieveSQL), id).Scan(t.FieldsPtrs()...); err != nil {
 			switch {
 			case errors.Is(err, pgx.ErrNoRows):
-				return http.StatusNotFound, t, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err)
+				return http.StatusNotFound, t, fmt.Errorf("failed to retrieve the %T with id '%v': %w", t, id, err)
 			case errors.Is(err, pgx.ErrTooManyRows):
-				return http.StatusConflict, t, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err)
+				return http.StatusConflict, t, fmt.Errorf("failed to retrieve the %T with id '%v': %w", t, id, err)
 			default:
-				return http.StatusInternalServerError, t, fmt.Errorf("failed to retrieve the %T with id %q: %w", t, id, err)
+				return http.StatusInternalServerError, t, fmt.Errorf("failed to retrieve the %T with id '%v': %w", t, id, err)
 			}
 		}
 
@@ -177,20 +187,21 @@ func retrieve[T FieldsPtrsAware](ctx context.Context, retrieveSQL RetrieveSQL[T]
 	})
 }
 
-type Updatable interface {
+type Updatable[K any] interface {
+	Identifiable[K]
 	FieldsValsAware
-	WithId(id string)
+	WithID(K)
 }
 
-func UpdateFromReqBody[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, body io.ReadCloser) (int, string) {
+func UpdateFromReqBody[K any, T Updatable[K]](ctx context.Context, updateSQL UpdateSQL[T], idString string, body io.ReadCloser) (int, string) {
 	content, err := io.ReadAll(body)
 	if err != nil {
 		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
 	}
-	return Update(ctx, updateSQL, id, content)
+	return Update(ctx, updateSQL, idString, content)
 }
 
-func Update[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string, content []byte) (int, string) {
+func Update[K any, T Updatable[K]](ctx context.Context, updateSQL UpdateSQL[T], idString string, content []byte) (int, string) {
 	t := inst[T]()
 	if err := json.Unmarshal(content, t); err != nil {
 		return failed(http.StatusBadRequest, fmt.Errorf("failed to unmarshal %T from JSON: %w", t, err))
@@ -199,8 +210,14 @@ func Update[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string,
 		return failed(http.StatusBadRequest, fmt.Errorf("failed to validate %T: %w", t, err))
 	}
 
+	id, err := t.ParseID(idString)
+	if err != nil {
+		return failed(http.StatusNotFound, fmt.Errorf("failed to parse %T ID: %v: %w", t, idString, err))
+	}
+
+	t.WithID(id)
+
 	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
-		t.WithId(id)
 		commandTag, err := conn.Exec(ctx, string(updateSQL), t.FieldsVals()...)
 		switch {
 		case err != nil:
@@ -215,10 +232,15 @@ func Update[T Updatable](ctx context.Context, updateSQL UpdateSQL[T], id string,
 	}))
 }
 
-func Delete[T any](ctx context.Context, deleteSQL DeleteSQL[T], id string) (int, string) {
+func Delete[K any, T Identifiable[K]](ctx context.Context, deleteSQL DeleteSQL[T], idString string) (int, string) {
+	var t T
+	id, err := t.ParseID(idString) // it it OK if t is nil
+	if err != nil {
+		return failed(http.StatusNotFound, fmt.Errorf("failed to parse %T ID: %v: %w", t, idString, err))
+	}
+
 	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
 		commandTag, err := conn.Exec(ctx, string(deleteSQL), id)
-		var t T // only to build the error
 		switch {
 		case err != nil:
 			return http.StatusInternalServerError, t, fmt.Errorf("failed to delete %T with id %v: %w", t, id, err)
@@ -232,8 +254,8 @@ func Delete[T any](ctx context.Context, deleteSQL DeleteSQL[T], id string) (int,
 	}))
 }
 
-func List[T FieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int, limit int) (int, string) {
-	return marshal(withConn[[]T](ctx, func(conn *pgxpool.Conn) (int, []T, error) {
+func List[K any, T Retrievable[K]](ctx context.Context, listSQL ListSQL[T], offset int, limit int) (int, string) {
+	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, []T, error) {
 		sql := string(listSQL)
 
 		rows, err := conn.Query(ctx, sql, offset, limit)
@@ -256,8 +278,8 @@ func List[T FieldsPtrsAware](ctx context.Context, listSQL ListSQL[T], offset int
 	}))
 }
 
-func UUID() string {
-	return uuid.Must(uuid.NewV1()).String()
+func UUID() uuid.UUID {
+	return uuid.Must(uuid.NewV1())
 }
 
 var (
