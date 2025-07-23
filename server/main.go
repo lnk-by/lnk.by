@@ -32,6 +32,7 @@ const (
 	accessControlAllowHeadersHeader = "Access-Control-Allow-Headers"
 	authorizationHeader             = "Authorization"
 	contentTypeHeader               = "Content-Type"
+	retryAfterHeader                = "Retry-After"
 )
 
 const contentTypeJSON = "application/json"
@@ -147,6 +148,10 @@ func corsMiddleware(c *gin.Context) {
 func jsonErrorHandler(c *gin.Context) {
 	c.Next()
 
+	if c.Writer.Written() {
+		return
+	}
+
 	if len(c.Errors) > 0 {
 		err := c.Errors[0].Err
 		c.JSON(-1, gin.H{"error": err.Error()})
@@ -160,9 +165,19 @@ func jsonErrorHandler(c *gin.Context) {
 
 func redirect(c *gin.Context) {
 	key := c.Param("id")
-	status, url, errStr := service.RetrieveValueAndMarshalError(c.Request.Context(), shorturl.RetrieveSQL, key)
+	now := time.Now()
+	day := fmt.Sprintf("day%03d", now.YearDay())
+	hour := fmt.Sprintf("hour%02d", now.Hour())
+	status, url, errStr := service.RetrieveValueAndMarshalError(c.Request.Context(), shorturl.RetrieveValidSQL, key, day, hour)
 	if errStr != "" {
 		respondWithJSON(c, status, errStr)
+		return
+	}
+
+	if limitExceeded, retryAfter := shorturl.GetLimitExceededMessage(url); limitExceeded != "" {
+		c.Header(retryAfterHeader, string(retryAfter))
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": limitExceeded})
+		c.Writer.Written()
 		return
 	}
 

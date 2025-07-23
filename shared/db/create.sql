@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS shorturl (
 	campaign_id UUID REFERENCES campaign(id),
 	customer_id UUID REFERENCES customer(id),
 	status VARCHAR(16) CHECK (status IN ('active', 'cancelled', 'deleted')),
+	total_limit int NOT NULL DEFAULT 2147483647,
+	daily_limit int NOT NULL DEFAULT 2147483647,
+	hourly_limit int NOT NULL DEFAULT 2147483647,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
