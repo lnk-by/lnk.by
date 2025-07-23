@@ -156,8 +156,8 @@ func marshal[T any](status int, t T, err error) (int, string) {
 	return status, string(jsonBytes)
 }
 
-func RetrieveValueAndMarshalError[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], idString string) (int, T, string) {
-	status, value, err := retrieve(ctx, retrieveSQL, idString)
+func RetrieveValueAndMarshalError[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], idString string, args ...string) (int, T, string) {
+	status, value, err := retrieve(ctx, retrieveSQL, idString, args...)
 	if err != nil {
 		_, strErr := failed(status, err)
 		return status, value, strErr
@@ -166,7 +166,7 @@ func RetrieveValueAndMarshalError[K any, T Retrievable[K]](ctx context.Context, 
 	return status, value, ""
 }
 
-func retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], idString string) (int, T, error) {
+func retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], idString string, args ...string) (int, T, error) {
 	t := inst[T]()
 	id, err := t.ParseID(idString)
 	if err != nil {
@@ -174,7 +174,17 @@ func retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL Retrieve
 	}
 
 	return withConn(ctx, func(conn *pgxpool.Conn) (int, T, error) {
-		if err := conn.QueryRow(ctx, string(retrieveSQL), id).Scan(t.FieldsPtrs()...); err != nil {
+		var sql string
+		if len(args) > 0 {
+			anyArgs := make([]any, len(args))
+			for i, v := range args {
+				anyArgs[i] = v
+			}
+			sql = fmt.Sprintf(string(retrieveSQL), anyArgs...)
+		} else {
+			sql = string(retrieveSQL)
+		}
+		if err := conn.QueryRow(ctx, sql, id).Scan(t.FieldsPtrs()...); err != nil {
 			switch {
 			case errors.Is(err, pgx.ErrNoRows):
 				return http.StatusNotFound, t, fmt.Errorf("failed to retrieve the %T with id '%v': %w", t, id, err)

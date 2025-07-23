@@ -33,9 +33,26 @@ func init() {
 func redirect(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	key := req.PathParameters[service.IdParam]
 	slog.Info("Handling redirect", "RawPath", req.RawPath, "param[key]", key)
-	status, url, errStr := service.RetrieveValueAndMarshalError(ctx, shorturl.RetrieveSQL, key)
+
+	now := time.Now()
+	day := fmt.Sprintf("day%03d", now.YearDay())
+	hour := fmt.Sprintf("hour%02d", now.Hour())
+
+	status, url, errStr := service.RetrieveValueAndMarshalError(ctx, shorturl.RetrieveValidSQL, key, day, hour)
 	if errStr != "" {
 		return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: errStr}, nil
+	}
+	if limitExceeded, retryAfter := shorturl.GetLimitExceededMessage(url); limitExceeded != "" {
+		headers := map[string]string{"Content-Type": "application/json"}
+		if retryAfter > 0 {
+			headers["Retry-After"] = string(retryAfter)
+		}
+
+		return events.APIGatewayV2HTTPResponse{
+			StatusCode: http.StatusTooManyRequests,
+			Headers:    headers,
+			Body:       string(mustJSON(map[string]string{"error": limitExceeded})),
+		}, nil
 	}
 
 	if err := sendStatistics(ctx, key, req); err != nil {
@@ -49,6 +66,14 @@ func redirect(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.A
 			"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
 		},
 	}, nil
+}
+
+func mustJSON(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("failed to marshal JSON: " + err.Error())
+	}
+	return b
 }
 
 func sendStatistics(ctx context.Context, key string, req events.APIGatewayV2HTTPRequest) error {
