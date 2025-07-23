@@ -36,6 +36,24 @@
             <button type="button" id="changePasswordBtn">Change Password</button>
         </div>
         <a href="./shorturl.html" id="shorturlLink" style="display: none;">ShortURL</a><br><br>
+
+        
+        <div id="list" style="display: none;">
+            <label>List</label>
+            <select id="apiSelector">
+                <option value="http://localhost:8080">localhost</option>
+                <option value="https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com">prod</option>
+                <option value="https://4l44leoua1.execute-api.us-east-1.amazonaws.com">dev</option>
+            </select>
+            <select id="entitySelector">
+                <option value="organizations">organization</option>
+                <option value="customers">customer</option>
+                <option value="campaigns">campaign</option>
+                <option value="shorturls">shorturl</option>
+            </select>
+            <button type="button" id="showListBtn">Show List</button>
+            <div id="listResult"></div>
+        </div>
     </form>
 
     <button id="logoutBtn" style="display:none;">Logout</button>
@@ -102,13 +120,14 @@
         logoutBtn.addEventListener('click', () => {
             idToken = null;
             accessToken = null;
-            sessionStorage.removeItem('accessToken');
+            localStorage.removeItem('accessToken');
             logoutBtn.style.display = 'none';
             status.textContent = 'Logged out.';
             document.getElementById('showChangePasswordLink').style.display = 'none';
             document.getElementById('changePasswordFields').style.display = 'none';            
             document.getElementById('showForgotPasswordLink').style.display = 'inline';
             document.getElementById('deleteAccountBtn').style.display = 'none';
+            document.getElementById('list').style.display = 'none';
         });
 
         document.getElementById('showChangePasswordLink').addEventListener('click', function (e) {
@@ -149,7 +168,12 @@
                 AccessToken: accessToken
             });
         });
-        
+
+        document.getElementById('showListBtn').addEventListener('click', () => {
+            const api = document.getElementById('apiSelector').value;
+            const entity = document.getElementById('entitySelector').value;
+            sendShowListRequest(`${api}/${entity}`);
+        });
 
         async function sendCognitoRequest(action, payload) {
             const targetMap = {
@@ -192,7 +216,7 @@
                 } else if (action === 'InitiateAuth' && data.AuthenticationResult) {
                     idToken = data.AuthenticationResult.IdToken;
                     accessToken = data.AuthenticationResult.AccessToken;
-                    sessionStorage.setItem('accessToken', accessToken);
+                    localStorage.setItem("accessToken", accessToken);
                     status.textContent = 'Login successful!';
                     logoutBtn.style.display = 'inline';
                     document.getElementById('showChangePasswordLink').style.display = 'inline';
@@ -200,6 +224,7 @@
                     console.log('Tokens:', { idToken, accessToken });                    
                     document.getElementById('deleteAccountBtn').style.display = 'inline';
                     document.getElementById('shorturlLink').style.display = 'inline';
+                    document.getElementById('list').style.display = 'inline';
                 } else if (action === 'ChangePassword') {
                     console.log('Password changed:', data);
                     status.textContent = 'Password changed successfully.';
@@ -219,6 +244,72 @@
                 status.textContent = 'Unexpected error occurred.';
             }
         }
+
+
+        async function sendShowListRequest(url) {
+            try {
+                const res = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    console.error(`Fetch error:`, data);
+                    document.getElementById('status').textContent = `Failed: ${data.message || 'Unknown error'}`;
+                    return;
+                }
+
+                renderTable(data);
+            } catch (err) {
+                console.error('Request failed', err);
+                document.getElementById('status').textContent = `Error: ${err.message}`;
+            }
+        }
+
+        function renderTable(data) {
+            const container = document.getElementById('listResult');
+            container.innerHTML = ''; // Clear previous
+
+            if (!Array.isArray(data) || data.length === 0) {
+                container.textContent = 'No results.';
+                status.textContent = 'No results.';
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.border = '1';
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+
+            // Use keys from the first object to create headers
+            Object.keys(data[0]).forEach(key => {
+                const th = document.createElement('th');
+                th.textContent = key;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                Object.values(item).forEach(val => {
+                    const td = document.createElement('td');
+                    td.textContent = val;
+                    row.appendChild(td);
+                });
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(tbody);
+            container.appendChild(table);
+            status.textContent = 'Data is rendered';
+        }        
 
     </script>
 </body>

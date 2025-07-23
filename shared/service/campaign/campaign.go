@@ -58,5 +58,5 @@ var (
 	RetrieveSQL service.RetrieveSQL[*Campaign] = "SELECT id, name, organization_id, customer_id, status FROM campaign WHERE id = $1 AND status='active' AND now() BETWEEN valid_from AND valid_until"
 	UpdateSQL   service.UpdateSQL[*Campaign]   = "UPDATE campaign SET name = $2, organization_id = $3, customer_id = $4, status = $5 WHERE id = $1"
 	DeleteSQL   service.DeleteSQL[*Campaign]   = "DELETE FROM campaign WHERE id = $1"
-	ListSQL     service.ListSQL[*Campaign]     = "SELECT id, name, organization_id, customer_id, status FROM campaign WHERE status='active' OFFSET $1 LIMIT $2"
+	ListSQL     service.ListSQL[*Campaign]     = "SELECT id, name, organization_id, customer_id, status FROM campaign WHERE status='active' AND customer_id=$1 OFFSET $2 LIMIT $3"
 )

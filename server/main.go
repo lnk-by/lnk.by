@@ -62,6 +62,7 @@ func initDbConnection() error {
 }
 
 func list[K any, T service.Retrievable[K]](c *gin.Context, sql service.ListSQL[T]) {
+	userID := service.GetUUIDFromAuthorization(c.GetHeader("Authorization"))
 	offset, err := parseQueryInt(c, "offset", 0)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid offest"})
@@ -72,7 +73,7 @@ func list[K any, T service.Retrievable[K]](c *gin.Context, sql service.ListSQL[T
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit"})
 		return
 	}
-	status, body := service.List(c.Request.Context(), sql, offset, limit)
+	status, body := service.List(c.Request.Context(), sql, userID, offset, limit)
 	respondWithJSON(c, status, body)
 }
 
@@ -122,7 +123,7 @@ func createShortURL(c *gin.Context) {
 		respondWithJSON(c, http.StatusInternalServerError, fmt.Sprintf("{\"error\": %s}", fmt.Errorf("failed to read request body: %w", err)))
 		return
 	}
-	status, responseBody := shorturl.CreateShortURL(c.Request.Context(), requestBody)
+	status, responseBody := shorturl.CreateShortURL(c.Request.Context(), requestBody, nil)
 	respondWithJSON(c, status, responseBody)
 }
 

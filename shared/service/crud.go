@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"strings"
@@ -254,11 +256,11 @@ func Delete[K any, T Identifiable[K]](ctx context.Context, deleteSQL DeleteSQL[T
 	}))
 }
 
-func List[K any, T Retrievable[K]](ctx context.Context, listSQL ListSQL[T], offset int, limit int) (int, string) {
+func List[K any, T Retrievable[K]](ctx context.Context, listSQL ListSQL[T], userID *uuid.UUID, offset int, limit int) (int, string) {
 	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, []T, error) {
 		sql := string(listSQL)
 
-		rows, err := conn.Query(ctx, sql, offset, limit)
+		rows, err := conn.Query(ctx, sql, userID, offset, limit)
 		if err != nil {
 			return http.StatusInternalServerError, nil, fmt.Errorf("failed to execute list query for %T: %w", new(T), err)
 		}
@@ -280,6 +282,58 @@ func List[K any, T Retrievable[K]](ctx context.Context, listSQL ListSQL[T], offs
 
 func UUID() uuid.UUID {
 	return uuid.Must(uuid.NewV1())
+}
+
+func ToUUID(s string) *uuid.UUID {
+	if s == "" {
+		return nil
+	}
+	id, err := uuid.FromString(s)
+	if err != nil {
+		return nil
+	}
+	return &id
+}
+
+func GetUUIDFromAuthorization(authHeader string) *uuid.UUID {
+	claims := getClaimsFromAuthorization(authHeader)
+	if claims != nil {
+		if subStr, ok := claims["sub"].(string); ok {
+			return ToUUID(subStr)
+		}
+	}
+	return nil
+}
+
+func getClaimsFromAuthorization(authHeader string) map[string]interface{} {
+	var claims map[string]interface{}
+
+	if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		parts := strings.Split(token, ".")
+		if len(parts) == 3 {
+			payloadSegment := parts[1]
+
+			// Pad to make it valid base64
+			missingPadding := len(payloadSegment) % 4
+			if missingPadding != 0 {
+				payloadSegment += strings.Repeat("=", 4-missingPadding)
+			}
+
+			decoded, err := base64.RawURLEncoding.DecodeString(payloadSegment)
+			if err != nil {
+				slog.Error("Failed to decode JWT payload:", "error", err)
+			} else {
+				err = json.Unmarshal(decoded, &claims)
+				if err != nil {
+					fmt.Println("Failed to parse JWT claims:", err)
+				}
+			}
+		} else {
+			slog.Error("Invalid JWT format")
+		}
+	}
+	return claims
 }
 
 var (

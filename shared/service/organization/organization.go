@@ -52,5 +52,5 @@ var (
 	RetrieveSQL service.RetrieveSQL[*Organization] = "SELECT id, name, status FROM organization WHERE id = $1 AND status='active'"
 	UpdateSQL   service.UpdateSQL[*Organization]   = "UPDATE organization SET name = $2, status=$3 WHERE id = $1"
 	DeleteSQL   service.DeleteSQL[*Organization]   = "DELETE FROM organization WHERE id = $1"
-	ListSQL     service.ListSQL[*Organization]     = "SELECT id, name, status FROM organization WHERE status='active' OFFSET $1 LIMIT $2"
+	ListSQL     service.ListSQL[*Organization]     = "SELECT o.id, o.name, o.status FROM organization o JOIN customer c ON c.organization_id=o.id WHERE o.status='active' AND c.id=$1 OFFSET $2 LIMIT $3"
 )

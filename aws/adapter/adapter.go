@@ -50,7 +50,8 @@ func List[K any, T service.Retrievable[K]](ctx context.Context, request events.A
 	if err != nil {
 		return badRequestResponse(err)
 	}
-	status, body := service.List(ctx, listSQL, offset, limit)
+	userID := service.ToUUID(request.RequestContext.Authorizer.JWT.Claims["sub"])
+	status, body := service.List(ctx, listSQL, userID, offset, limit)
 	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
 }
 

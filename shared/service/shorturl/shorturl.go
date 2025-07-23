@@ -88,13 +88,16 @@ var (
 	RetrieveSQL service.RetrieveSQL[*ShortURL] = "SELECT key, is_custom, target, campaign_id, customer_id, status FROM shorturl WHERE key = $1 AND status='active' AND now() BETWEEN valid_from AND valid_until"
 	UpdateSQL   service.UpdateSQL[*ShortURL]   = "UPDATE shorturl SET target = $2, campaign_id = $3, customer_id = $4, status = $5 WHERE key = $1"
 	DeleteSQL   service.DeleteSQL[*ShortURL]   = "DELETE FROM shorturl WHERE key = $1"
-	ListSQL     service.ListSQL[*ShortURL]     = "SELECT key, is_custom, target, campaign_id, customer_id, status FROM shorturl WHERE status='active' OFFSET $1 LIMIT $2"
+	ListSQL     service.ListSQL[*ShortURL]     = "SELECT key, is_custom, target, campaign_id, customer_id, status FROM shorturl WHERE status='active' AND customer_id=$1 OFFSET $2 LIMIT $3"
 )
 
-func CreateShortURL(ctx context.Context, requestBody []byte) (int, string) {
+func CreateShortURL(ctx context.Context, requestBody []byte, userID *uuid.UUID) (int, string) {
 	url, err := service.Parse[*ShortURL](ctx, requestBody)
 	if err != nil {
 		return http.StatusBadRequest, http.StatusText(http.StatusBadRequest)
+	}
+	if url.CustomerID == nil {
+		url.CustomerID = userID
 	}
 
 	status, body := service.CreateRecord(ctx, CreateSQL, url, 0)

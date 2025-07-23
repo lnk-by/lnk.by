@@ -45,12 +45,17 @@
       }
 
       try {
-        const shortUrlEndpoint = apiEndpoint + "/shorturls"
+        const accessToken = localStorage.getItem("accessToken");
+        const shortUrlEndpoint = apiEndpoint + "/shorturls";
+        const headers = {
+          "Content-Type": "application/json"
+        };
+        if (accessToken) {
+            headers['Authorization'] = `Bearer ${accessToken}`;
+        }
         const response = await fetch(shortUrlEndpoint, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+          headers: headers,
           body: JSON.stringify({ target: url, key: urlKey.value.trim() })
         });
 
