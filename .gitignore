@@ -34,3 +34,5 @@ profile.cov
 .DS_Store
 Thumbs.db
 *.mmdb
+
+server/__debug_bin*

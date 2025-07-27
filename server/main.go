@@ -15,11 +15,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid"
 	"github.com/joho/godotenv"
 	"github.com/lnk.by/shared/db"
 	"github.com/lnk.by/shared/service"
 	"github.com/lnk.by/shared/service/campaign"
 	"github.com/lnk.by/shared/service/customer"
+	"github.com/lnk.by/shared/service/landingpage"
 	"github.com/lnk.by/shared/service/organization"
 	"github.com/lnk.by/shared/service/shorturl"
 	"github.com/lnk.by/shared/service/stats"
@@ -63,6 +65,10 @@ func initDbConnection() error {
 }
 
 func list[K any, T service.Retrievable[K]](c *gin.Context, sql service.ListSQL[T]) {
+	listAndTransform(c, sql, func(t T) (T, error) { return t, nil })
+}
+
+func listAndTransform[K any, T service.Retrievable[K]](c *gin.Context, sql service.ListSQL[T], transformer func(t T) (T, error)) {
 	userID := service.GetUUIDFromAuthorization(c.GetHeader("Authorization"))
 	offset, err := parseQueryInt(c, "offset", 0)
 	if err != nil {
@@ -74,7 +80,7 @@ func list[K any, T service.Retrievable[K]](c *gin.Context, sql service.ListSQL[T
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit"})
 		return
 	}
-	status, body := service.List(c.Request.Context(), sql, userID, offset, limit)
+	status, body := service.List(c.Request.Context(), sql, userID, offset, limit, transformer)
 	respondWithJSON(c, status, body)
 }
 
@@ -93,7 +99,11 @@ func parseQueryInt(c *gin.Context, key string, defaultValue int) (int, error) {
 }
 
 func retrieve[K any, T service.Retrievable[K]](c *gin.Context, sql service.RetrieveSQL[T]) {
-	status, body := service.Retrieve(c.Request.Context(), sql, c.Param("id"))
+	retrieveAndTransform(c, sql, func(t T) (T, error) { return t, nil })
+}
+
+func retrieveAndTransform[K any, T service.Retrievable[K]](c *gin.Context, sql service.RetrieveSQL[T], transformer func(t T) (T, error)) {
+	status, body := service.Retrieve(c.Request.Context(), sql, c.Param("id"), transformer)
 	respondWithJSON(c, status, body)
 }
 
@@ -103,12 +113,19 @@ func create[T service.Creatable](c *gin.Context, sql service.CreateSQL[T]) {
 }
 
 func update[K any, T service.Updatable[K]](c *gin.Context, sql service.UpdateSQL[T]) {
-	status, body := service.UpdateFromReqBody(c.Request.Context(), sql, c.Param("id"), c.Request.Body)
-	respondWithJSON(c, status, body)
+	updateAndFinalize(c, sql, func(id K, t T) error { return nil })
 }
 
+func updateAndFinalize[K any, T service.Updatable[K]](c *gin.Context, sql service.UpdateSQL[T], finalizer func(id K, t T) error) {
+	status, body := service.UpdateFromReqBody(c.Request.Context(), sql, c.Param("id"), c.Request.Body, finalizer)
+	respondWithJSON(c, status, body)
+}
 func deleteEntity[K any, T service.Retrievable[K]](c *gin.Context, sql service.DeleteSQL[T]) {
-	status, body := service.Delete(c.Request.Context(), sql, c.Param("id"))
+	deleteEntityAndFinalize(c, sql, func(id K) error { return nil })
+}
+
+func deleteEntityAndFinalize[K any, T service.Retrievable[K]](c *gin.Context, sql service.DeleteSQL[T], finalizer func(id K) error) {
+	status, body := service.Delete(c.Request.Context(), sql, c.Param("id"), finalizer)
 	respondWithJSON(c, status, body)
 }
 
@@ -116,6 +133,17 @@ func respondWithJSON(c *gin.Context, statusCode int, jsonStr string) {
 	c.Header(contentTypeHeader, contentTypeJSON)
 	c.Header(accessControlAllowOriginHeader, allowAnyOrigin)
 	c.String(statusCode, jsonStr)
+}
+
+func createLandingPage(c *gin.Context) {
+	content, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		respondWithJSON(c, http.StatusInternalServerError, fmt.Sprintf("{\"error\": %s}", fmt.Errorf("failed to read request body: %w", err)))
+		return
+	}
+	status, body := landingpage.CreateLandingPage(c.Request.Context(), string(content), nil)
+	respondWithJSON(c, status, body)
+
 }
 
 func createShortURL(c *gin.Context) {
@@ -224,13 +252,38 @@ func run() error {
 	router.GET("/campaigns/:id", func(c *gin.Context) { retrieve(c, campaign.RetrieveSQL) })
 	router.DELETE("/campaigns/:id", func(c *gin.Context) { deleteEntity(c, campaign.DeleteSQL) })
 
-	router.POST("/shorturls", func(c *gin.Context) { create(c, shorturl.CreateSQL) })
+	router.POST("/shorturls", func(c *gin.Context) { createShortURL(c) })
 	router.PUT("/shorturls/:id", func(c *gin.Context) { update(c, shorturl.UpdateSQL) })
 	router.GET("/shorturls", func(c *gin.Context) { list(c, shorturl.ListSQL) })
 	router.GET("/shorturls/:id", func(c *gin.Context) { retrieve(c, shorturl.RetrieveSQL) })
 	router.DELETE("/shorturls/:id", func(c *gin.Context) { deleteEntity(c, shorturl.DeleteSQL) })
 
+	router.POST("/landingpages", func(c *gin.Context) { createLandingPage(c) })
+	router.PUT("/landingpages/:id", func(c *gin.Context) {
+		updateAndFinalize(c, landingpage.UpdateSQL, func(id uuid.UUID, p *landingpage.LandingPage) error {
+			_, err := landingpage.SetConfiguration(c.Request.Context(), p)
+			return err
+		})
+	})
+	router.GET("/landingpages", func(c *gin.Context) {
+		listAndTransform(c, landingpage.ListSQL,
+			func(p *landingpage.LandingPage) (*landingpage.LandingPage, error) {
+				return landingpage.SetConfiguration(c.Request.Context(), p)
+			})
+	})
+	router.GET("/landingpages/:id", func(c *gin.Context) {
+		retrieveAndTransform(c, landingpage.RetrieveSQL, func(p *landingpage.LandingPage) (*landingpage.LandingPage, error) {
+			return landingpage.SetConfiguration(c.Request.Context(), p)
+		})
+	})
+	router.DELETE("/landingpages/:id", func(c *gin.Context) {
+		deleteEntityAndFinalize(c, landingpage.DeleteSQL, func(id uuid.UUID) error { return landingpage.DeleteConfiguration(c.Request.Context(), id) })
+	})
+
 	router.GET("/go/:id", redirect)
+
+	router.Static("/ui", "../ui")
+	router.Static("/landingpages", "../landingpages")
 
 	if err := initDbConnection(); err != nil {
 		return fmt.Errorf("failed to init DB connnection: %w", err)

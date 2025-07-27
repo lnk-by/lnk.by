@@ -1,0 +1,100 @@
+package s3client
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"log/slog"
+	"os"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+)
+
+var s3Client *s3.Client
+var s3Bucket string
+
+func InitializeFromEnvironment(ctx context.Context) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		log.Fatalf("unable to load SDK config: %v", err)
+	}
+	s3Client = s3.NewFromConfig(cfg)
+	s3Bucket = os.Getenv("S3_BUCKET")
+	slog.Info("Connection to S3", "bucket", s3Bucket)
+}
+
+func PutString(ctx context.Context, path string, content string) error {
+	putInput := &s3.PutObjectInput{
+		Bucket: aws.String(s3Bucket),
+		Key:    aws.String(path),
+		Body:   strings.NewReader(content),
+	}
+
+	// Upload to S3
+	_, err := s3Client.PutObject(ctx, putInput)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func GetString(ctx context.Context, path string) (string, error) {
+	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s3Bucket),
+		Key:    aws.String(path),
+	})
+	if err != nil {
+		var noSuchKey *types.NoSuchKey
+		if ok := errors.As(err, &noSuchKey); ok {
+			return "", fmt.Errorf("object %q not found in bucket %q", path, s3Bucket)
+		}
+		return "", fmt.Errorf("failed to get object: %w", err)
+	}
+	defer output.Body.Close()
+
+	data, err := io.ReadAll(output.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read object body: %w", err)
+	}
+
+	return string(data), nil
+}
+
+func Delete(ctx context.Context, path string) error {
+	_, err := s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s3Bucket),
+		Key:    aws.String(path),
+	})
+	return err
+}
+
+func List(ctx context.Context, prefix string, extension string) ([]string, error) {
+	var result []string
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(s3Bucket),
+		Prefix: aws.String(prefix),
+	}
+
+	paginator := s3.NewListObjectsV2Paginator(s3Client, input)
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("listing S3 objects: %w", err)
+		}
+
+		for _, obj := range page.Contents {
+			if strings.HasSuffix(*obj.Key, "."+extension) {
+				result = append(result, *obj.Key)
+			}
+		}
+	}
+
+	return result, nil
+}

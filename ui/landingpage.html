@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Landing page</title>
+  <link rel="stylesheet" href="test.css">
+
+  <style>
+    .hidden { display: none; }
+    label, select, input, textarea, button { display: block; margin: 10px 0; }
+  </style>  
+</head>
+<body>
+  <div class="container">
+    <h1>Make Pages to land Again</h1>
+    <form id="landingpageForm">
+      <select id="apiSelector">
+        <option value="">-- Select API Endpoint --</option>
+        <option value="http://localhost:8080">localhost</option>
+        <option value="https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com">prod</option>
+        <option value="https://4l44leoua1.execute-api.us-east-1.amazonaws.com">dev</option>
+      </select>
+
+      <div id="templateBlock" class="hidden">
+        <label>Choose template</label>
+        <select id="templateSelector"></select>
+      </div>
+
+      <div id="detailsBlock" class="hidden">
+        <label>Choose theme</label>
+        <select id="themeSelector"></select>
+
+        <label>Name</label>
+        <input type="text" id="nameInput" required />
+
+        <label>Configuration</label>
+        <textarea id="configurationInput" rows="10" cols="50"></textarea>
+
+        <button type="submit">Create landing page</button>
+      </div>    
+    </form>
+    <p id="resultLabel"></p>
+    <a href="./auth.html">Sign Up / Log In</a>
+  </div>
+
+  <script>
+    const apiSelector = document.getElementById('apiSelector');
+    const templateBlock = document.getElementById('templateBlock');
+    const templateSelector = document.getElementById('templateSelector');
+    const detailsBlock = document.getElementById('detailsBlock');
+    const themeSelector = document.getElementById('themeSelector');
+    const configurationInput = document.getElementById('configurationInput');
+    let templates = [];    
+    const resultLabel = document.getElementById("resultLabel");
+
+    const accessToken = localStorage.getItem("accessToken");
+    const headers = {
+      "Authorization": `Bearer ${accessToken}`
+    };
+
+    apiSelector.addEventListener('change', async () => {
+      const baseUrl = apiSelector.value;
+      if (!baseUrl) {
+        templateBlock.classList.add('hidden');
+        detailsBlock.classList.add('hidden');
+        return;
+      }
+      const apiBase = apiSelector.value;
+      if (!apiBase) return;
+
+      try {
+        const response = await fetch(`${apiBase}/templates`, { headers });
+        templates = await response.json();
+
+        templateSelector.innerHTML = '';
+        templates.forEach((tpl, index) => {
+          const option = document.createElement('option');
+          option.value = index;
+          option.textContent = tpl.name;
+          templateSelector.appendChild(option);
+        });
+
+        templateBlock.classList.remove('hidden');
+        if (templateSelector.children.length == 0) {
+          detailsBlock.classList.remove('hidden');
+        } else {
+          fillDetails();
+        }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+      }
+    });
+
+    templateSelector.addEventListener('change', () => {
+      fillDetails();
+    });    
+
+    document.getElementById("landingpageForm").addEventListener("submit", async (e) => {
+      const apiEndpoint = apiSelector.value
+      e.preventDefault();
+
+
+      try {
+        const accessToken = localStorage.getItem("accessToken");
+        const landingpageEndpoint = apiEndpoint + "/landingpages";
+        const headers = {
+          "Content-Type": "application/json"
+        };
+        if (accessToken) {
+            headers['Authorization'] = `Bearer ${accessToken}`;
+        }
+        const response = await fetch(landingpageEndpoint, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({ 
+            name: document.getElementById("nameInput").value,
+            template: document.getElementById("templateSelector").options[document.getElementById("templateSelector").value].text,
+            style: document.getElementById("themeSelector").value,
+            configuration: JSON.parse(document.getElementById("configurationInput").value)
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server responded with ${response.status}`);
+        }
+        const data = await response.json();
+        resultLabel.textContent = `Landing page ${data.id} is created`
+      } catch (err) {
+        resultLabel.textContent = "Error: " + err.message + " " + apiEndpoint;
+      }
+    });
+
+    function fillDetails() {
+      const index = templateSelector.value;
+      if (!templates[index]) return;
+
+      const selected = templates[index];
+
+      // Populate themeSelector
+      themeSelector.innerHTML = '';
+      selected.style.forEach(style => {
+        const option = document.createElement('option');
+        option.value = style;
+        option.textContent = style;
+        themeSelector.appendChild(option);
+      });
+
+      // Populate configuration
+      configurationInput.value = JSON.stringify(selected.configuration, null, 2);
+
+      detailsBlock.classList.remove('hidden');
+
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "header_text": {
+    "textContent": "The main header",
+    "style": {
+      "color": "blue"
+    }
+  },
+  "sub_text": {
+    "textContent": "Description"
+  },
+  "button": {
+    "innerHTML": "<b>Start Now</b>",
+    "href": "https://www.youtube.com",
+    "style": {
+      "backgroundColor": "#1E90FF",
+      "borderRadius": "8px"
+    }
+  },
+  "auto": {
+    "href": "https://www.youtube.com",
+    "delay": 5000
+  }
+}
+

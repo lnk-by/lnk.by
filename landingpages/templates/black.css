@@ -1,0 +1,25 @@
+body {
+    background-color: #111;
+    color: #eee;
+    font-family: sans-serif;
+    margin: 0;
+    padding: 2em;
+    text-align: center;
+}
+
+.hero {
+    max-width: 600px;
+    margin: auto;
+}
+
+.cta-button {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 12px 24px;
+    background-color: #0af;
+    color: #000;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 16px;
+}
