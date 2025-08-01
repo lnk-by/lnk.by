@@ -93,7 +93,7 @@ func DeleteConfiguration(ctx context.Context, id uuid.UUID) error {
 }
 
 func getConfigurationPath(id uuid.UUID) string {
-	return fmt.Sprintf("landingpages/%s.json", id)
+	return fmt.Sprintf("landingpages/conf/%s.json", id)
 }
 
 func CreateLandingPage(ctx context.Context, body string, userID *uuid.UUID) (int, string) {

@@ -283,7 +283,8 @@ func run() error {
 	router.GET("/go/:id", redirect)
 
 	router.Static("/ui", "../ui")
-	router.Static("/landingpages", "../landingpages")
+	router.Static("/landingpages/templates", "../landingpages/templates")
+	router.Static("/landingpages/conf", "../landingpages/conf")
 
 	if err := initDbConnection(); err != nil {
 		return fmt.Errorf("failed to init DB connnection: %w", err)

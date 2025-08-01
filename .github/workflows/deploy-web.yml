@@ -42,6 +42,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           aws s3 sync ./ui s3://$S3_BUCKET/ui --delete --region "$AWS_REGION"
+          aws s3 sync ./landingpages s3://$S3_BUCKET/landingpages --delete --region "$AWS_REGION"
 
       - name: Remove files from S3
         if: ${{ endsWith(inputs.operation, 'Remove') }}
@@ -50,3 +51,5 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           aws s3 rm s3://$S3_BUCKET/ui --recursive --region "$AWS_REGION"
+          aws s3 rm s3://$S3_BUCKET/landingpages --recursive --region "$AWS_REGION"
+          aws s3 rm s3://$S3_BUCKET/landingpages/templates --recursive --region "$AWS_REGION"
