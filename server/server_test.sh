@@ -53,3 +53,14 @@ curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.youtu
 
 # example of customized landing page URL
 http://localhost:8080/landingpages/templates/simple.html?conf=../conf/test.json&style=black.css
+
+# how to get to UI on S3
+https://lnkby.s3.amazonaws.com/ui/auth.html
+
+# how to show landing page without parameters
+https://lnkby.s3.amazonaws.com/landingpages/templates/simple.html
+
+# how to show landing page with parameters
+https://lnkby.s3.amazonaws.com/landingpages/templates/simple.html?conf=../conf/7453af15-6eb3-11f0-be5b-2e0cc33a88b7.json&style=black.css
+
+
