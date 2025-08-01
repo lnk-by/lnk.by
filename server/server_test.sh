@@ -49,3 +49,7 @@ curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.youtu
 
 
 curl -X POST -H 'Content-Type: application/json' -d '{"target":"http://www.youtube.com", "key": "ubt", "custom": true}' https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com/shorturl
+
+
+# example of customized landing page URL
+http://localhost:8080/landingpages/templates/simple.html?conf=../conf/test.json&style=black.css
