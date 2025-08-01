@@ -15,32 +15,48 @@ import (
 	"github.com/lnk.by/shared/service"
 )
 
-var standardHeaders = map[string]string{
+var StandardHeaders = map[string]string{
 	"Content-Type":                "application/json",
 	"Access-Control-Allow-Origin": "*",
 }
 
 func Create[T service.Creatable](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.CreateSQL[T]) events.APIGatewayV2HTTPResponse {
 	status, body := service.Create(ctx, sql, []byte(request.Body))
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: StandardHeaders}
 }
 
 func Retrieve[K any, T service.Retrievable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.RetrieveSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
-	status, body := service.Retrieve(ctx, sql, request.PathParameters[idParam])
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
+	return RetrieveAndTransform(ctx, request, sql, idParam, func(t T) (T, error) { return t, nil })
+}
+
+func RetrieveAndTransform[K any, T service.Retrievable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.RetrieveSQL[T], idParam string, transformer func(t T) (T, error)) events.APIGatewayV2HTTPResponse {
+	status, body := service.Retrieve(ctx, sql, request.PathParameters[idParam], transformer)
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: StandardHeaders}
 }
 
 func Update[K any, T service.Updatable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.UpdateSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
-	status, body := service.Update(ctx, sql, request.PathParameters[idParam], []byte(request.Body))
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
+	return UpdateAndFinalize(ctx, request, sql, idParam, func(id K, t T) error { return nil })
+}
+
+func UpdateAndFinalize[K any, T service.Updatable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.UpdateSQL[T], idParam string, finalizer func(id K, t T) error) events.APIGatewayV2HTTPResponse {
+	status, body := service.Update(ctx, sql, request.PathParameters[idParam], []byte(request.Body), finalizer)
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: StandardHeaders}
 }
 
 func Delete[K any, T service.Identifiable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.DeleteSQL[T], idParam string) events.APIGatewayV2HTTPResponse {
-	status, body := service.Delete(ctx, sql, request.PathParameters[idParam])
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
+	return DeleteAndFinalize(ctx, request, sql, idParam, func(id K) error { return nil })
+}
+
+func DeleteAndFinalize[K any, T service.Identifiable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, sql service.DeleteSQL[T], idParam string, finalizer func(id K) error) events.APIGatewayV2HTTPResponse {
+	status, body := service.Delete(ctx, sql, request.PathParameters[idParam], finalizer)
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: StandardHeaders}
 }
 
 func List[K any, T service.Retrievable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, listSQL service.ListSQL[T]) events.APIGatewayV2HTTPResponse {
+	return ListAndTransform(ctx, request, listSQL, func(t T) (T, error) { return t, nil })
+}
+
+func ListAndTransform[K any, T service.Retrievable[K]](ctx context.Context, request events.APIGatewayV2HTTPRequest, listSQL service.ListSQL[T], transformer func(t T) (T, error)) events.APIGatewayV2HTTPResponse {
 	params := request.QueryStringParameters
 	offset, err := parseQueryInt(params, "offset", 0)
 	if err != nil {
@@ -51,8 +67,8 @@ func List[K any, T service.Retrievable[K]](ctx context.Context, request events.A
 		return badRequestResponse(err)
 	}
 	userID := service.ToUUID(request.RequestContext.Authorizer.JWT.Claims["sub"])
-	status, body := service.List(ctx, listSQL, userID, offset, limit)
-	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: standardHeaders}
+	status, body := service.List(ctx, listSQL, userID, offset, limit, transformer)
+	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: StandardHeaders}
 }
 
 func parseQueryInt(params map[string]string, key string, defaultValue int) (int, error) {

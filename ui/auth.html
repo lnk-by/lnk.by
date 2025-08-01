@@ -36,6 +36,7 @@
             <button type="button" id="changePasswordBtn">Change Password</button>
         </div>
         <a href="./shorturl.html" id="shorturlLink" style="display: none;">ShortURL</a><br><br>
+        <a href="./landingpage.html" id="landingPageLink" style="display: none;">Landing Page</a><br><br>
 
         
         <div id="list" style="display: none;">
@@ -50,6 +51,7 @@
                 <option value="customers">customer</option>
                 <option value="campaigns">campaign</option>
                 <option value="shorturls">shorturl</option>
+                <option value="landingpages">landingpages</option>
             </select>
             <button type="button" id="showListBtn">Show List</button>
             <div id="listResult"></div>
@@ -224,6 +226,7 @@
                     console.log('Tokens:', { idToken, accessToken });                    
                     document.getElementById('deleteAccountBtn').style.display = 'inline';
                     document.getElementById('shorturlLink').style.display = 'inline';
+                    document.getElementById('landingPageLink').style.display = 'inline';
                     document.getElementById('list').style.display = 'inline';
                 } else if (action === 'ChangePassword') {
                     console.log('Password changed:', data);

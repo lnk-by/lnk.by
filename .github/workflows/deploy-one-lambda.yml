@@ -28,6 +28,13 @@ on:
           - aws/shorturl/update
           - aws/shorturl/delete
           - aws/shorturl/list
+          - aws/landingpage/create
+          - aws/landingpage/retrieve
+          - aws/landingpage/update
+          - aws/landingpage/delete
+          - aws/landingpage/list
+          - aws/template/retrieve
+          - aws/template/list
           - aws/redirect
           - aws/cors
           - aws/user/created
@@ -79,6 +86,8 @@ on:
         required: true
       MAXMIND_LICENSE_KEY:
         required: true
+      S3_BUCKET:
+        required: true
 
 run-name: >
   ${{ github.event_name == 'workflow_dispatch' && format('{0} {1}Lambda {2}', github.event.inputs.operation, github.event.inputs.manage == 'CORS' && 'CORS for ' || '', github.event.inputs.lambda_name) ||
@@ -101,6 +110,7 @@ jobs:
       AWS_AUTHORIZER_ID: ${{ vars.AWS_AUTHORIZER_ID }}
       AWS_USER_POOL_ID: ${{ vars.AWS_USER_POOL_ID }}
       MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -130,7 +140,12 @@ jobs:
         path=$(echo "${{ inputs.lambda_name }}" | sed 's/^aws//')
         action=$(basename "$path")
         invocation=http
-        route="$(dirname $path)s"
+        route="$(dirname $path)"
+        if [[ "$route" != "/" ]]; then
+          route="${route}s"
+        fi
+
+
         authorize=true
 
         # Determine HTTP method based on action
@@ -347,9 +362,10 @@ jobs:
         done
 
         echo "🔧 Configuring environment..."
+        echo "Configurating lambda: Variables={DB_URL=$DB_URL,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,S3_BUCKET=$S3_BUCKET}"
         aws lambda update-function-configuration \
           --function-name "$out_name" \
-          --environment "Variables={DB_URL=$DB_URL,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD}"
+          --environment "Variables={DB_URL=$DB_URL,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,S3_BUCKET=$S3_BUCKET}"
 
         echo "🔧 Configuring VPC..."
         VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query 'Vpcs[0].VpcId' --output text)
@@ -467,6 +483,32 @@ jobs:
                 \"Effect\": \"Allow\",
                 \"Action\": \"lambda:InvokeFunction\",
                 \"Resource\": \"arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:$out_name\"
+              }
+            ]
+          }"
+
+    - name: Config S3 Access
+      if: ${{ endsWith(inputs.operation, 'Deploy') && (startsWith(env.lambda_path, 'aws/template') || startsWith(env.lambda_path, 'aws/landingpage')) }}
+      run: |
+        set +e
+        aws iam put-role-policy \
+          --role-name LAMBDA_MANAGER \
+          --policy-name AllowS3Access \
+          --policy-document "{
+            \"Version\": \"2012-10-17\",
+            \"Statement\": [
+              {
+                \"Effect\": \"Allow\",
+                \"Action\": \"s3:ListBucket\",
+                \"Resource\": \"arn:aws:s3:::${S3_BUCKET}\"
+              },
+              {
+                \"Effect\": \"Allow\",
+                \"Action\": [
+                  \"s3:GetObject\",
+                  \"s3:PutObject\"
+                ],
+                \"Resource\": \"arn:aws:s3:::${S3_BUCKET}/*\"
               }
             ]
           }"

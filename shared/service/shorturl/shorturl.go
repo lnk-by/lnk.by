@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"time"
@@ -100,7 +101,7 @@ var (
 		WHERE u.key = $1 AND u.status='active' AND now() BETWEEN u.valid_from AND u.valid_until`
 	UpdateSQL service.UpdateSQL[*ShortURL] = "UPDATE shorturl SET target = $2, campaign_id = $3, customer_id = $4, status = $5 WHERE key = $1"
 	DeleteSQL service.DeleteSQL[*ShortURL] = "DELETE FROM shorturl WHERE key = $1"
-	ListSQL   service.ListSQL[*ShortURL]   = "SELECT key, is_custom, target, campaign_id, customer_id, status FROM shorturl WHERE status='active' AND customer_id=$1 OFFSET $2 LIMIT $3"
+	ListSQL   service.ListSQL[*ShortURL]   = "SELECT key, is_custom, target, campaign_id, customer_id, status, total_limit, daily_limit, hourly_limit FROM shorturl WHERE status='active' AND customer_id=$1 OFFSET $2 LIMIT $3"
 )
 
 func CreateShortURL(ctx context.Context, requestBody []byte, userID *uuid.UUID) (int, string) {
@@ -111,18 +112,28 @@ func CreateShortURL(ctx context.Context, requestBody []byte, userID *uuid.UUID) 
 	if url.CustomerID == nil {
 		url.CustomerID = userID
 	}
+	if url.TotalLimit == 0 {
+		url.TotalLimit = math.MaxInt32
+	}
+	if url.DailyLimit == 0 {
+		url.DailyLimit = math.MaxInt32
+	}
+	if url.HourlyLimit == 0 {
+		url.HourlyLimit = math.MaxInt32
+	}
 
 	status, body := service.CreateRecord(ctx, CreateSQL, url, 0)
 
-	e := stats.Event{Key: url.Key}
-	createSQLs := []service.CreateSQL[*stats.Event]{stats.CreateTotalSQL, stats.CreateDailySQL, stats.CreateHourlySQL, stats.CreateUserAgentSQL, stats.CreateCountrySQL}
-	for _, sql := range createSQLs {
-		status, body := service.CreateRecord(ctx, sql, &e, 0)
-		if status >= http.StatusBadRequest {
-			return status, body
+	if status < http.StatusMultipleChoices {
+		e := stats.Event{Key: url.Key}
+		createSQLs := []service.CreateSQL[*stats.Event]{stats.CreateTotalSQL, stats.CreateDailySQL, stats.CreateHourlySQL, stats.CreateUserAgentSQL, stats.CreateCountrySQL}
+		for _, sql := range createSQLs {
+			status, body := service.CreateRecord(ctx, sql, &e, 0)
+			if status >= http.StatusBadRequest {
+				return status, body
+			}
 		}
 	}
-
 	return status, body
 }
 

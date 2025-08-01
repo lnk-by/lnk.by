@@ -44,6 +44,21 @@ CREATE TABLE IF NOT EXISTS shorturl (
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS landingpage (
+	id UUID PRIMARY KEY,
+	name VARCHAR(255) NOT NULL,
+	template VARCHAR(255) NOT NULL,
+	style VARCHAR(255) NOT NULL,
+    valid_from TIMESTAMPTZ NOT NULL DEFAULT now(),
+    valid_until TIMESTAMPTZ NOT NULL DEFAULT '2050-01-01 00:00:00+00',
+	organization_id UUID REFERENCES organization(id),
+	customer_id UUID REFERENCES customer(id),
+	status VARCHAR(16) CHECK (status IN ('active', 'cancelled', 'deleted')),
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
 CREATE INDEX IF NOT EXISTS idx_customer_by_organization ON customer(organization_id);
 
 CREATE INDEX IF NOT EXISTS idx_campaign_customer ON campaign(customer_id);
@@ -53,6 +68,11 @@ CREATE INDEX IF NOT EXISTS idx_campaign_org ON campaign(organization_id);
 CREATE INDEX IF NOT EXISTS idx_shorturl_customer ON shorturl(customer_id);
 
 CREATE INDEX IF NOT EXISTS idx_shorturl_campaign ON shorturl(campaign_id);
+
+CREATE INDEX IF NOT EXISTS idx_landingpage_customer ON landingpage(customer_id);
+
+CREATE INDEX IF NOT EXISTS idx_landingpage_org ON landingpage(organization_id);
+
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$
@@ -74,6 +94,9 @@ CREATE TRIGGER set_updated_at_campaign_trigger BEFORE UPDATE ON campaign FOR EAC
 
 DROP TRIGGER IF EXISTS set_updated_at_shorturl_trigger ON shorturl;
 CREATE TRIGGER set_updated_at_shorturl_trigger BEFORE UPDATE ON shorturl FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS set_updated_at_landingpage_trigger ON landingpage;
+CREATE TRIGGER set_updated_at_landingpage_trigger BEFORE UPDATE ON landingpage FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- statistics
 CREATE TABLE IF NOT EXISTS total_count (

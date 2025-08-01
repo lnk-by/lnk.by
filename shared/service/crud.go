@@ -137,8 +137,8 @@ func inst[T any]() T {
 	return reflect.New(reflect.TypeFor[T]().Elem()).Interface().(T)
 }
 
-func Retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], id string) (int, string) {
-	return marshal(retrieve(ctx, retrieveSQL, id))
+func Retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], id string, transformer func(t T) (T, error)) (int, string) {
+	return marshal(retrieve(ctx, retrieveSQL, id, transformer))
 }
 
 func marshal[T any](status int, t T, err error) (int, string) {
@@ -157,7 +157,7 @@ func marshal[T any](status int, t T, err error) (int, string) {
 }
 
 func RetrieveValueAndMarshalError[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], idString string, args ...string) (int, T, string) {
-	status, value, err := retrieve(ctx, retrieveSQL, idString, args...)
+	status, value, err := retrieve(ctx, retrieveSQL, idString, func(t T) (T, error) { return t, nil }, args...)
 	if err != nil {
 		_, strErr := failed(status, err)
 		return status, value, strErr
@@ -166,7 +166,7 @@ func RetrieveValueAndMarshalError[K any, T Retrievable[K]](ctx context.Context, 
 	return status, value, ""
 }
 
-func retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], idString string, args ...string) (int, T, error) {
+func retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL RetrieveSQL[T], idString string, transformer func(t T) (T, error), args ...string) (int, T, error) {
 	t := inst[T]()
 	id, err := t.ParseID(idString)
 	if err != nil {
@@ -194,7 +194,10 @@ func retrieve[K any, T Retrievable[K]](ctx context.Context, retrieveSQL Retrieve
 				return http.StatusInternalServerError, t, fmt.Errorf("failed to retrieve the %T with id '%v': %w", t, id, err)
 			}
 		}
-
+		t, err = transformer(t)
+		if err != nil {
+			return http.StatusInternalServerError, t, fmt.Errorf("failed to transform row value %T: %w", t, err)
+		}
 		return http.StatusOK, t, nil
 	})
 }
@@ -205,15 +208,15 @@ type Updatable[K any] interface {
 	WithID(K)
 }
 
-func UpdateFromReqBody[K any, T Updatable[K]](ctx context.Context, updateSQL UpdateSQL[T], idString string, body io.ReadCloser) (int, string) {
+func UpdateFromReqBody[K any, T Updatable[K]](ctx context.Context, updateSQL UpdateSQL[T], idString string, body io.ReadCloser, finalizer func(id K, t T) error) (int, string) {
 	content, err := io.ReadAll(body)
 	if err != nil {
 		return failed(http.StatusInternalServerError, fmt.Errorf("failed to read request body: %w", err))
 	}
-	return Update(ctx, updateSQL, idString, content)
+	return Update(ctx, updateSQL, idString, content, finalizer)
 }
 
-func Update[K any, T Updatable[K]](ctx context.Context, updateSQL UpdateSQL[T], idString string, content []byte) (int, string) {
+func Update[K any, T Updatable[K]](ctx context.Context, updateSQL UpdateSQL[T], idString string, content []byte, finalizer func(id K, t T) error) (int, string) {
 	t := inst[T]()
 	if err := json.Unmarshal(content, t); err != nil {
 		return failed(http.StatusBadRequest, fmt.Errorf("failed to unmarshal %T from JSON: %w", t, err))
@@ -240,11 +243,15 @@ func Update[K any, T Updatable[K]](ctx context.Context, updateSQL UpdateSQL[T], 
 			return http.StatusConflict, t, fmt.Errorf("failed to update %T %v: %w", t, t, pgx.ErrTooManyRows)
 		}
 
+		if err = finalizer(id, t); err != nil {
+			return http.StatusInternalServerError, t, fmt.Errorf("failed to finilize updating of %T with id %v: %w", t, id, err)
+		}
+
 		return http.StatusOK, t, nil
 	}))
 }
 
-func Delete[K any, T Identifiable[K]](ctx context.Context, deleteSQL DeleteSQL[T], idString string) (int, string) {
+func Delete[K any, T Identifiable[K]](ctx context.Context, deleteSQL DeleteSQL[T], idString string, finalizer func(id K) error) (int, string) {
 	var t T
 	id, err := t.ParseID(idString) // it it OK if t is nil
 	if err != nil {
@@ -262,11 +269,15 @@ func Delete[K any, T Identifiable[K]](ctx context.Context, deleteSQL DeleteSQL[T
 			return http.StatusNotFound, t, fmt.Errorf("failed to delete %T with id %v: %w", t, id, pgx.ErrTooManyRows)
 		}
 
+		if err = finalizer(id); err != nil {
+			return http.StatusInternalServerError, t, fmt.Errorf("failed to finilize deletion of %T with id %v: %w", t, id, err)
+		}
+
 		return http.StatusNoContent, t, nil
 	}))
 }
 
-func List[K any, T Retrievable[K]](ctx context.Context, listSQL ListSQL[T], userID *uuid.UUID, offset int, limit int) (int, string) {
+func List[K any, T Retrievable[K]](ctx context.Context, listSQL ListSQL[T], userID *uuid.UUID, offset int, limit int, transformer func(t T) (T, error)) (int, string) {
 	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, []T, error) {
 		sql := string(listSQL)
 
@@ -282,7 +293,10 @@ func List[K any, T Retrievable[K]](ctx context.Context, listSQL ListSQL[T], user
 			if err := rows.Scan(t.FieldsPtrs()...); err != nil {
 				return http.StatusInternalServerError, ts, fmt.Errorf("failed to scan row to build the %T: %w", t, err)
 			}
-
+			t, err = transformer(t)
+			if err != nil {
+				return http.StatusInternalServerError, ts, fmt.Errorf("failed to transform row value %T: %w", t, err)
+			}
 			ts = append(ts, t)
 		}
 

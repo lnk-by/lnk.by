@@ -13,6 +13,8 @@ on:
           - campaign
           - organization
           - shorturl
+          - landingpage
+          - template
           - all
 
       action:
@@ -79,9 +81,14 @@ jobs:
         echo "entity: ${{ inputs.entity }}, action: ${{ inputs.action }}"
         if [[ "${{ inputs.entity }}" != "nothing" && "${{ inputs.action }}" != "nothing" ]]; then
           if [[ "${{ inputs.entity }}" == "all" ]]; then
-            for e in customer campaign organization shorturl; do
+            for e in customer campaign organization shorturl landingpage template; do
               if [[ "${{ inputs.action }}" == "all" ]]; then
-                for a in create list retrieve update delete; do
+                if [[ "${e}" == "template" ]]; then
+                  actions="list retrieve"
+                else
+                  actions="create list retrieve update delete"
+                fi
+                for a in $actions; do
                   targets+="aws/${e}/${a} "
                 done
               else
@@ -90,7 +97,12 @@ jobs:
             done
           else
             if [[ "${{ inputs.action }}" == "all" ]]; then
-              for a in create list retrieve update delete; do
+              if [[ "${{ inputs.entity }}" == "template" ]]; then
+                actions="list retrieve"
+              else
+                actions="create list retrieve update delete"
+              fi
+              for a in $actions; do
                 targets+="aws/${{ inputs.entity }}/${a} "
               done
             else
@@ -224,6 +236,7 @@ jobs:
       DB_USER: ${{ secrets.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
 
   call-deploy-cors:
     needs:
@@ -247,6 +260,7 @@ jobs:
       DB_USER: ${{ secrets.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       MAXMIND_LICENSE_KEY: ${{ secrets.MAXMIND_LICENSE_KEY }}
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
 
   deploy-web:
     if: ${{ github.event.inputs.deploy_web == 'true' }}
