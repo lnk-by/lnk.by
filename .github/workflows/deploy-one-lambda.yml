@@ -102,8 +102,8 @@ on:
         required: true
 
 run-name: >
-  ${{ github.event_name == 'workflow_dispatch' && format('{0} {1}Lambda {2}', github.event.inputs.operation, github.event.inputs.manage == 'CORS' && 'CORS for ' || '', github.event.inputs.lambda_name) ||
-      github.event_name == 'workflow_call' && format('{0} {1}Lambda  {2}', inputs.operation, inputs.manage == 'CORS' && 'CORS for ' || '', inputs.lambda_name) ||
+  ${{ github.event_name == 'workflow_dispatch' && format('[{0}] {1} {2}Lambda {3}', github.event.inputs.environment, github.event.inputs.operation, github.event.inputs.manage == 'CORS' && 'CORS for ' || '', github.event.inputs.lambda_name) ||
+      github.event_name == 'workflow_call' && format('[{0}] {1} {2}Lambda {3}', inputs.environment, inputs.operation, inputs.manage == 'CORS' && 'CORS for ' || '', inputs.lambda_name) ||
       'Running Lambda Workflow' }}
 
 jobs:

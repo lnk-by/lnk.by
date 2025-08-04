@@ -239,7 +239,9 @@ jobs:
         retention-days: 1
 
   call-deploy-lambda:
-    needs: deploy-matrix
+    needs:
+      - deploy-matrix
+      - prepare-env
     if: needs.deploy-matrix.outputs.lambda_names != '[]'
     strategy:
       matrix:
@@ -265,6 +267,7 @@ jobs:
     needs:
       - deploy-matrix
       - call-deploy-lambda
+      - prepare-env
     if: needs.deploy-matrix.outputs.cors_lambda_names != '[]'
     strategy:
       matrix:
