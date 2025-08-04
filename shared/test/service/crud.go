@@ -17,27 +17,27 @@ func Create[T service.Creatable](t *testing.T, createSQL service.CreateSQL[T], e
 }
 
 func Retrieve[K any, T service.Retrievable[K]](t *testing.T, retrieveSQL service.RetrieveSQL[T], id string) T {
-	status, body := service.Retrieve(t.Context(), retrieveSQL, id)
+	status, body := service.Retrieve(t.Context(), retrieveSQL, id, func(t T) (T, error) { return t, nil })
 	assert.Equal(t, http.StatusOK, status)
 
 	return unmarshal[T](t, body)
 }
 
 func Update[K any, T service.Updatable[K]](t *testing.T, updateSQL service.UpdateSQL[T], id string, entity T) T {
-	status, body := service.Update(t.Context(), updateSQL, id, marshal(t, entity))
+	status, body := service.Update(t.Context(), updateSQL, id, marshal(t, entity), func(id K, t T) error { return nil })
 	assert.Equal(t, http.StatusOK, status)
 
 	return unmarshal[T](t, body)
 }
 
 func Delete[K any, T service.Identifiable[K]](t *testing.T, deleteSQL service.DeleteSQL[T], id string) {
-	status, body := service.Delete(t.Context(), deleteSQL, id)
+	status, body := service.Delete(t.Context(), deleteSQL, id, func(id K) error { return nil })
 	assert.Equal(t, http.StatusNoContent, status)
 	assert.Len(t, body, 0)
 }
 
 func List[K any, T service.Retrievable[K]](t *testing.T, listSQL service.ListSQL[T], offset int, limit int) []T {
-	status, body := service.List(t.Context(), listSQL, offset, limit)
+	status, body := service.List(t.Context(), listSQL, nil, offset, limit, func(t T) (T, error) { return t, nil })
 	assert.Equal(t, http.StatusOK, status)
 
 	return unmarshal[[]T](t, body)

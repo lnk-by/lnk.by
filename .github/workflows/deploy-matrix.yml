@@ -3,6 +3,14 @@ name: Deploy or Remove Selected Lambdas
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Select environment"
+        required: true
+        type: choice
+        options:
+          - "⚙️ development"
+          - "🧪 staging"
+          - "🔥 production"
       entity:
         description: "🧩 Select entity to deploy"
         required: true
@@ -61,12 +69,26 @@ on:
           - 🚀 Deploy
           - 🗑️ Remove
 
-run-name: "${{ github.event.inputs.operation }}: 🗂️:${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}, 🙍‍♀️:${{ github.event.inputs.deploy_user_customer }}, 📊:${{ github.event.inputs.deploy_stats }},🌐:${{ github.event.inputs.deploy_web }}"
+run-name: "${{ github.event.inputs.operation }}(${{ github.event.inputs.environment }}): 🗂️:${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}, 🙍‍♀️:${{ github.event.inputs.deploy_user_customer }}, 📊:${{ github.event.inputs.deploy_stats }},🌐:${{ github.event.inputs.deploy_web }}"
 
 jobs:
-  deploy-matrix:
+  prepare-env:
     runs-on: ubuntu-latest
-    environment: 'PRODUCTION'
+    outputs:
+      clean_env: ${{ steps.strip_env.outputs.clean_env }}
+    steps:
+      - name: Strip emoji from environment input
+        id: strip_env
+        run: |
+          raw="${{ github.event.inputs.environment }}"
+          clean=$(echo "$raw" | cut -d' ' -f2 | tr '[:lower:]' '[:upper:]')
+          echo "clean_env=$clean"
+          echo "clean_env=$clean" >> $GITHUB_OUTPUT
+  deploy-matrix:
+    needs: prepare-env
+    runs-on: ubuntu-latest
+    environment: ${{ needs.prepare-env.outputs.clean_env }}
+
     outputs:
       lambda_names: ${{ steps.set-targets.outputs.lambda_names }}
       cors_lambda_names: ${{ steps.set-targets.outputs.cors_lambda_names }}
@@ -217,7 +239,9 @@ jobs:
         retention-days: 1
 
   call-deploy-lambda:
-    needs: deploy-matrix
+    needs:
+      - deploy-matrix
+      - prepare-env
     if: needs.deploy-matrix.outputs.lambda_names != '[]'
     strategy:
       matrix:
@@ -229,6 +253,7 @@ jobs:
       operation: ${{ inputs.operation }}
       do_build: "false"
       manage: "Lambda"
+      environment: ${{ needs.prepare-env.outputs.clean_env }}
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -242,6 +267,7 @@ jobs:
     needs:
       - deploy-matrix
       - call-deploy-lambda
+      - prepare-env
     if: needs.deploy-matrix.outputs.cors_lambda_names != '[]'
     strategy:
       matrix:
@@ -253,6 +279,7 @@ jobs:
       operation: ${{ inputs.operation }}
       do_build: "false"
       manage: "CORS"
+      environment: ${{ needs.prepare-env.outputs.clean_env }}
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -263,10 +290,13 @@ jobs:
       S3_BUCKET: ${{ vars.S3_BUCKET }}
 
   deploy-web:
+    needs:
+      - prepare-env
     if: ${{ github.event.inputs.deploy_web == 'true' }}
     uses: ./.github/workflows/deploy-web.yml
     with:
       operation: ${{ inputs.operation }}
+      environment: ${{ needs.prepare-env.outputs.clean_env }}
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

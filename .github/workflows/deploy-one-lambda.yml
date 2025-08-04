@@ -3,6 +3,14 @@ name: Deploy or Remove One Lambda
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Select environment"
+        required: true
+        type: choice
+        options:
+          - DEVELOPMENT
+          - STAGING
+          - PRODUCTION
       lambda_name:
         description: "Lambda Name (e.g. aws/campaign/create or aws/redirect)"
         required: true
@@ -57,6 +65,10 @@ on:
           - 🗑️ Remove
   workflow_call:
     inputs:
+      environment:
+        description: "Select environment"
+        required: true
+        type: string
       lambda_name:
         description: "Lambda Name (e.g. aws/campaign/create or aws/redirect)"
         required: true
@@ -90,18 +102,18 @@ on:
         required: true
 
 run-name: >
-  ${{ github.event_name == 'workflow_dispatch' && format('{0} {1}Lambda {2}', github.event.inputs.operation, github.event.inputs.manage == 'CORS' && 'CORS for ' || '', github.event.inputs.lambda_name) ||
-      github.event_name == 'workflow_call' && format('{0} {1}Lambda  {2}', inputs.operation, inputs.manage == 'CORS' && 'CORS for ' || '', inputs.lambda_name) ||
+  ${{ github.event_name == 'workflow_dispatch' && format('[{0}] {1} {2}Lambda {3}', github.event.inputs.environment, github.event.inputs.operation, github.event.inputs.manage == 'CORS' && 'CORS for ' || '', github.event.inputs.lambda_name) ||
+      github.event_name == 'workflow_call' && format('[{0}] {1} {2}Lambda {3}', inputs.environment, inputs.operation, inputs.manage == 'CORS' && 'CORS for ' || '', inputs.lambda_name) ||
       'Running Lambda Workflow' }}
 
 jobs:
   lambda_manage:
     runs-on: ubuntu-latest
-    environment: 'PRODUCTION'
+    environment: ${{ inputs.environment }}
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
       DB_URL: ${{ secrets.DB_URL }}
       DB_USER: ${{ secrets.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -331,6 +343,7 @@ jobs:
         fi
 
         echo "Lambda does not exist. Creating Lambda..."
+        echo environment=${{ inputs.environment }}
 
         LAMBDA_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/LAMBDA_MANAGER"
 
