@@ -47,16 +47,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Deploy files to S3
-        if: ${{ endsWith(inputs.operation, 'Deploy') }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: |
-          echo environment=${{ inputs.environment }}
-          aws s3 sync ./ui s3://$S3_BUCKET/ui --delete --region "$AWS_REGION"
-          aws s3 sync ./landingpages s3://$S3_BUCKET/landingpages --delete --region "$AWS_REGION"
-
       - name: Remove files from S3
         if: ${{ endsWith(inputs.operation, 'Remove') }}
         env:
@@ -65,3 +55,13 @@ jobs:
         run: |
           aws s3 rm s3://$S3_BUCKET/ui --recursive --region "$AWS_REGION"
           aws s3 rm s3://$S3_BUCKET/landingpages/templates --recursive --region "$AWS_REGION"
+
+      - name: Deploy files to S3
+        if: ${{ endsWith(inputs.operation, 'Deploy') }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo environment=${{ inputs.environment }}
+          aws s3 cp ./ui s3://$S3_BUCKET/ui --recursive --region "$AWS_REGION"
+          aws s3 cp ./landingpages/templates s3://$S3_BUCKET/landingpages/templates --recursive --region "$AWS_REGION"
