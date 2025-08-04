@@ -280,25 +280,37 @@ func Delete[K any, T Identifiable[K]](ctx context.Context, deleteSQL DeleteSQL[T
 func List[K any, T Retrievable[K]](ctx context.Context, listSQL ListSQL[T], userID *uuid.UUID, offset int, limit int, transformer func(t T) (T, error)) (int, string) {
 	return marshal(withConn(ctx, func(conn *pgxpool.Conn) (int, []T, error) {
 		sql := string(listSQL)
+		slog.Info("List 1", "sql", sql)
 
 		rows, err := conn.Query(ctx, sql, userID, offset, limit)
+		slog.Info("List 2")
 		if err != nil {
+			slog.Info("List 2.1", "error", err)
 			return http.StatusInternalServerError, nil, fmt.Errorf("failed to execute list query for %T: %w", new(T), err)
 		}
 		defer rows.Close()
+		slog.Info("List 3")
 
 		ts := make([]T, 0)
 		for rows.Next() {
 			t := inst[T]()
+			slog.Info("List 4")
 			if err := rows.Scan(t.FieldsPtrs()...); err != nil {
+				slog.Info("List 4.1", "error", err)
 				return http.StatusInternalServerError, ts, fmt.Errorf("failed to scan row to build the %T: %w", t, err)
 			}
+			slog.Info("List 5")
 			t, err = transformer(t)
+			slog.Info("List 6")
 			if err != nil {
+				slog.Info("List 6.1", "error", err)
 				return http.StatusInternalServerError, ts, fmt.Errorf("failed to transform row value %T: %w", t, err)
 			}
+			slog.Info("List 7")
 			ts = append(ts, t)
+			slog.Info("List 8")
 		}
+		slog.Info("List 9")
 
 		return http.StatusOK, ts, nil
 	}))
