@@ -82,11 +82,13 @@ jobs:
         run: |
           raw="${{ github.event.inputs.environment }}"
           clean=$(echo "$raw" | cut -d' ' -f2 | tr '[:lower:]' '[:upper:]')
+          echo "clean_env=$clean"
           echo "clean_env=$clean" >> $GITHUB_OUTPUT
   deploy-matrix:
     needs: prepare-env
     runs-on: ubuntu-latest
     environment: ${{ needs.prepare-env.outputs.clean_env }}
+
     outputs:
       lambda_names: ${{ steps.set-targets.outputs.lambda_names }}
       cors_lambda_names: ${{ steps.set-targets.outputs.cors_lambda_names }}
@@ -249,7 +251,7 @@ jobs:
       operation: ${{ inputs.operation }}
       do_build: "false"
       manage: "Lambda"
-      environment: ${{ needs.deploy-matrix.outputs.environment }}
+      environment: ${{ needs.prepare-env.outputs.clean_env }}
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -274,7 +276,7 @@ jobs:
       operation: ${{ inputs.operation }}
       do_build: "false"
       manage: "CORS"
-      environment: ${{ needs.deploy-matrix.outputs.environment }}
+      environment: ${{ needs.prepare-env.outputs.clean_env }}
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -289,7 +291,7 @@ jobs:
     uses: ./.github/workflows/deploy-web.yml
     with:
       operation: ${{ inputs.operation }}
-      environment: ${{ needs.deploy-matrix.outputs.environment }}
+      environment: ${{ needs.prepare-env.outputs.clean_env }}
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
