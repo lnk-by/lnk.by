@@ -3,6 +3,14 @@ name: Deploy or Remove One Lambda
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Select environment"
+        required: true
+        type: choice
+        options:
+          - DEVELOPMENT
+          - STAGING
+          - PRODUCTION
       lambda_name:
         description: "Lambda Name (e.g. aws/campaign/create or aws/redirect)"
         required: true
@@ -57,6 +65,10 @@ on:
           - 🗑️ Remove
   workflow_call:
     inputs:
+      environment:
+        description: "Select environment"
+        required: true
+        type: string
       lambda_name:
         description: "Lambda Name (e.g. aws/campaign/create or aws/redirect)"
         required: true
@@ -97,11 +109,11 @@ run-name: >
 jobs:
   lambda_manage:
     runs-on: ubuntu-latest
-    environment: 'PRODUCTION'
+    environment: ${{ inputs.environment }}
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
       DB_URL: ${{ secrets.DB_URL }}
       DB_USER: ${{ secrets.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
