@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 
 	"github.com/gofrs/uuid"
@@ -79,12 +78,9 @@ var (
 )
 
 func SetConfiguration(ctx context.Context, page *LandingPage) (*LandingPage, error) {
-	slog.Info("SetConfiguration 1")
 	if err := ReadConfiguration(ctx, getConfigurationPath(page.ID), &page.Configuration); err != nil {
-		slog.Info("SetConfiguration 2", "error", err)
 		return page, err
 	}
-	slog.Info("SetConfiguration 3")
 	return page, nil
 }
 

@@ -67,9 +67,7 @@ func ListAndTransform[K any, T service.Retrievable[K]](ctx context.Context, requ
 		return badRequestResponse(err)
 	}
 	userID := service.ToUUID(request.RequestContext.Authorizer.JWT.Claims["sub"])
-	slog.Info("ListAndTransform 1", "userID", userID)
 	status, body := service.List(ctx, listSQL, userID, offset, limit, transformer)
-	slog.Info("ListAndTransform 2", "status", status)
 	return events.APIGatewayV2HTTPResponse{StatusCode: status, Body: body, Headers: StandardHeaders}
 }
 

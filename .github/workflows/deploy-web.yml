@@ -64,5 +64,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           aws s3 rm s3://$S3_BUCKET/ui --recursive --region "$AWS_REGION"
-          aws s3 rm s3://$S3_BUCKET/landingpages --region "$AWS_REGION"
           aws s3 rm s3://$S3_BUCKET/landingpages/templates --recursive --region "$AWS_REGION"
