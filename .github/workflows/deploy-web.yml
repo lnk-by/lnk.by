@@ -53,6 +53,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
+          echo environment=${{ inputs.environment }}
           aws s3 sync ./ui s3://$S3_BUCKET/ui --delete --region "$AWS_REGION"
           aws s3 sync ./landingpages s3://$S3_BUCKET/landingpages --delete --region "$AWS_REGION"
 

@@ -290,6 +290,8 @@ jobs:
       S3_BUCKET: ${{ vars.S3_BUCKET }}
 
   deploy-web:
+    needs:
+      - prepare-env
     if: ${{ github.event.inputs.deploy_web == 'true' }}
     uses: ./.github/workflows/deploy-web.yml
     with:
