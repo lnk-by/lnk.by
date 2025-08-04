@@ -203,7 +203,7 @@ func redirect(c *gin.Context) {
 	}
 
 	if limitExceeded, retryAfter := shorturl.GetLimitExceededMessage(url); limitExceeded != "" {
-		c.Header(retryAfterHeader, string(retryAfter))
+		c.Header(retryAfterHeader, strconv.Itoa(retryAfter))
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": limitExceeded})
 		c.Writer.Written()
 		return

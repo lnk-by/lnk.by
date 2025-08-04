@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -45,7 +46,7 @@ func redirect(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.A
 	if limitExceeded, retryAfter := shorturl.GetLimitExceededMessage(url); limitExceeded != "" {
 		headers := map[string]string{"Content-Type": "application/json"}
 		if retryAfter > 0 {
-			headers["Retry-After"] = string(retryAfter)
+			headers["Retry-After"] = strconv.Itoa(retryAfter)
 		}
 
 		return events.APIGatewayV2HTTPResponse{
