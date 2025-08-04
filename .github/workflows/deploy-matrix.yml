@@ -8,9 +8,9 @@ on:
         required: true
         type: choice
         options:
-          - "🛠 development"
+          - "⚙️ development"
           - "🧪 staging"
-          - "🚀 production"
+          - "🔥 production"
       entity:
         description: "🧩 Select entity to deploy"
         required: true
@@ -69,7 +69,7 @@ on:
           - 🚀 Deploy
           - 🗑️ Remove
 
-run-name: "${{ github.event.inputs.operation }}: 🗂️:${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}, 🙍‍♀️:${{ github.event.inputs.deploy_user_customer }}, 📊:${{ github.event.inputs.deploy_stats }},🌐:${{ github.event.inputs.deploy_web }}"
+run-name: "${{ github.event.inputs.operation }}(${{ github.event.inputs.environment }}): 🗂️:${{ github.event.inputs.entity }},	🛠️:${{ github.event.inputs.action }}, 	🔀:${{ github.event.inputs.deploy_redirect }}, 🙍‍♀️:${{ github.event.inputs.deploy_user_customer }}, 📊:${{ github.event.inputs.deploy_stats }},🌐:${{ github.event.inputs.deploy_web }}"
 
 jobs:
   prepare-env:

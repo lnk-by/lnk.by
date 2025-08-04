@@ -343,6 +343,7 @@ jobs:
         fi
 
         echo "Lambda does not exist. Creating Lambda..."
+        echo environment=${{ inputs.environment }}
 
         LAMBDA_ROLE_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:role/LAMBDA_MANAGER"
 
