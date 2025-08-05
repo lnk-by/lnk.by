@@ -1,0 +1,185 @@
+name: Manage AWS Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'DEVELOPMENT'
+        type: choice
+        options:
+          - DEVELOPMENT
+          - STAGING
+          - PRODUCTION
+      region:
+        description: 'AWS Region'
+        required: true
+        default: 'eu-north-1'
+        type: choice
+        options:
+            - us-east-1
+            - us-east-2
+            - us-west-1
+            - us-west-2
+            - ca-central-1
+            - eu-west-1
+            - eu-west-2
+            - eu-west-3
+            - eu-central-1
+            - eu-north-1
+            - eu-south-1
+            - ap-southeast-1
+            - ap-southeast-2
+            - ap-northeast-1
+            - ap-northeast-2
+            - ap-south-1
+            - ap-east-1
+            - ap-northeast-3
+            - sa-east-1
+            - af-south-1
+            - me-south-1
+            - me-central-1
+            - il-central-1
+            - cn-north-1
+            - cn-northwest-1
+      api_gateway:
+        description: 'API Gateway name (leave empty if you do not want to manage it)'
+        type: string
+      user_pool:
+        description: 'Manage Cognito User Pool (leave empty if you do not want to manage it)'
+        type: string
+      s3_bucket:
+        description: 'S3 Bucket name (leave empty if you do not want to manage it)'
+        type: string
+      rds_data:
+        description: 'RDS data (DBID, DB name, username, password), example: db-dev-1,postgres,postgres,mypassword'
+        type: string
+      manage_schema:
+        description: 'PostgreSQL Tables / Schema'
+        type: boolean
+        default: false
+      operation:
+        description: 'Deploy or Remove'
+        required: true
+        type: choice
+        options:
+          - 🚀 Deploy
+          - 🗑️ Remove
+
+jobs:
+  manage:
+    name: '${{ github.event.inputs.operation }} Infra'
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ github.event.inputs.region }}
+      BUCKET_NAME: ${{ github.event.inputs.s3_bucket }}
+      USER_POOL_NAME: ${{ github.event.inputs.user_pool }}
+      HTTP_API_NAME: ${{ github.event.inputs.api_gateway }}
+      DB_SQL_CREATE: ./shared/db/create.sql
+      DB_SQL_DROP: ./shared/db/drop.sql
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse RDS Data
+        if: ${{ inputs.rds_data != '' }}
+        run: |
+            DB_DATA=$(echo "${{ inputs.rds_data }}" | sed 's/^ *//g' | sed 's/ *$//g' | sed 's/ *, */,/g')
+            IFS=',' read -r DB_IDENTIFIER DB_NAME DB_USER DB_PASSWORD <<< "$DB_DATA"
+            echo "DB_IDENTIFIER=$DB_IDENTIFIER" >> "$GITHUB_ENV"
+            echo "DB_NAME=$DB_NAME" >> "$GITHUB_ENV"
+            echo "DB_USER=$DB_USER" >> "$GITHUB_ENV"
+            echo "DB_PASSWORD=$DB_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.region }}
+
+      # Remove
+
+      # API Gateway
+      - name: Manage API Gateway
+        if: ${{ inputs.api_gateway != '' }}
+        run: |
+          id=$(aws apigatewayv2 get-apis --query "Items[?Name=='$HTTP_API_NAME'].ApiId" --output text)
+          [[ -n "$id" ]] && aws apigatewayv2 delete-api --api-id "$id"
+
+      # Cognito
+      - name: Manage Cognito
+        if: ${{ inputs.user_pool != '' && contains(inputs.operation, 'Remove') }}
+        run: |
+          id=$(aws cognito-idp list-user-pools --max-results 50 --query "UserPools[?Name=='$USER_POOL_NAME'].Id" --output text)
+          [[ -n "$id" ]] && aws cognito-idp delete-user-pool --user-pool-id "$id"
+
+      # S3 Bucket
+      - name: Manage S3
+        if: ${{ inputs.s3_bucket == 'true' && contains(inputs.operation, 'Remove') }}
+        run: |
+          aws s3 rm "s3://$BUCKET_NAME" --recursive || true
+          aws s3api delete-bucket --bucket "$BUCKET_NAME"
+
+      # RDS PostgreSQL
+      - name: Manage RDS
+        if: ${{ inputs.rds_data != '' && contains(inputs.operation, 'Remove') }}
+        run: |
+          aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
+
+      # PostgreSQL schema
+      - name: Manage DB Schema
+        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Remove') }}
+        run: |
+          endpoint=$(aws rds describe-db-instances \
+            --db-instance-identifier "$DB_IDENTIFIER" \
+            --query 'DBInstances[0].Endpoint.Address' \
+            --output text)
+
+          PGPASSWORD=$DB_PASSWORD psql -h "$endpoint" -U "$DB_USER" -d "$DB_NAME" -f "$DB_SQL_DROP"
+
+      # Deploy
+
+      # API Gateway
+      - name: Manage API Gateway
+        if: ${{ inputs.api_gateway != '' }}
+        run: |
+            aws apigatewayv2 create-api --name "$HTTP_API_NAME" --protocol-type HTTP
+
+      # Cognito
+      - name: Manage Cognito
+        if: ${{ inputs.user_pool != '' && contains(inputs.operation, 'Deploy') }}
+        run: |
+          aws cognito-idp create-user-pool --pool-name "$USER_POOL_NAME"
+
+      # S3 Bucket
+      - name: Manage S3
+        if: ${{ inputs.s3_bucket == 'true' && contains(inputs.operation, 'Deploy') }}
+        run: |
+          aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
+
+      # RDS PostgreSQL
+      - name: Manage RDS
+        if: ${{ inputs.rds_data != '' && contains(inputs.operation, 'Deploy') }}
+        run: |
+            aws rds create-db-instance \
+              --db-instance-identifier "$DB_IDENTIFIER" \
+              --db-instance-class db.t3.micro \
+              --engine postgres \
+              --master-username "$DB_USER" \
+              --master-user-password "$DB_PASSWORD" \
+              --allocated-storage 20
+
+      # PostgreSQL schema
+      - name: Manage DB Schema
+        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Deploy') }}
+        run: |
+          endpoint=$(aws rds describe-db-instances \
+            --db-instance-identifier "$DB_IDENTIFIER" \
+            --query 'DBInstances[0].Endpoint.Address' \
+            --output text)
+
+          PGPASSWORD=$DB_PASSWORD psql -h "$endpoint" -U "$DB_USER" -d "$DB_NAME" -f "$DB_SQL_CREATE"
