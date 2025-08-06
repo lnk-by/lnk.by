@@ -98,6 +98,7 @@ jobs:
             echo "DB_NAME=$DB_NAME" >> "$GITHUB_ENV"
             echo "DB_USER=$DB_USER" >> "$GITHUB_ENV"
             echo "DB_PASSWORD=$DB_PASSWORD" >> "$GITHUB_ENV"
+            echo "inputs.manage_schema=${{ inputs.manage_schema }}"
 
       - name: Setup AWS CLI
         uses: aws-actions/configure-aws-credentials@v2
@@ -109,29 +110,29 @@ jobs:
       # Remove
 
       # API Gateway
-      - name: Manage API Gateway
+      - name: Delete API Gateway
         if: ${{ inputs.api_gateway != '' }}
         run: |
           id=$(aws apigatewayv2 get-apis --query "Items[?Name=='$HTTP_API_NAME'].ApiId" --output text)
           [[ -n "$id" ]] && aws apigatewayv2 delete-api --api-id "$id"
 
       # Cognito
-      - name: Manage Cognito
+      - name: Delete User pool
         if: ${{ inputs.user_pool != '' && contains(inputs.operation, 'Remove') }}
         run: |
           id=$(aws cognito-idp list-user-pools --max-results 50 --query "UserPools[?Name=='$USER_POOL_NAME'].Id" --output text)
           [[ -n "$id" ]] && aws cognito-idp delete-user-pool --user-pool-id "$id"
 
       # S3 Bucket
-      - name: Manage S3
+      - name: Remove S3 bucket
         if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Remove') }}
         run: |
           aws s3 rm "s3://$BUCKET_NAME" --recursive || true
           aws s3api delete-bucket --bucket "$BUCKET_NAME"
 
       # PostgreSQL schema
-      - name: Manage DB Schema
-        if: ${{ inputs.manage_schema != '' && contains(inputs.operation, 'Remove') }}
+      - name: Drop DB Schema
+        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Remove') }}
         run: |
           endpoint=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \
@@ -141,33 +142,33 @@ jobs:
           PGPASSWORD=$DB_PASSWORD psql -h "$endpoint" -U "$DB_USER" -d "$DB_NAME" -f "$DB_SQL_DROP"
 
       # RDS PostgreSQL
-      - name: Manage RDS
-        if: ${{ inputs.rds_data != '' && contains(inputs.operation, 'Remove') }}
+      - name: Drop RDS instance
+        if: ${{ inputs.manage_db == 'true' && contains(inputs.operation, 'Remove') }}
         run: |
           aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
 
       # Deploy
 
       # API Gateway
-      - name: Manage API Gateway
+      - name: Create API Gateway
         if: ${{ inputs.api_gateway != '' }}
         run: |
             aws apigatewayv2 create-api --name "$HTTP_API_NAME" --protocol-type HTTP
 
       # Cognito
-      - name: Manage Cognito
+      - name: Create User pool
         if: ${{ inputs.user_pool != '' && contains(inputs.operation, 'Deploy') }}
         run: |
           aws cognito-idp create-user-pool --pool-name "$USER_POOL_NAME"
 
       # S3 Bucket
-      - name: Manage S3
+      - name: Create S3 bucket
         if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Deploy') }}
         run: |
           aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
 
       # RDS PostgreSQL
-      - name: Manage RDS
+      - name: Deploy RDS instance
         if: ${{ inputs.manage_db == 'true' && contains(inputs.operation, 'Deploy') }}
         run: |
             aws rds create-db-instance \
@@ -191,7 +192,7 @@ jobs:
             echo "DB with requested USER and PASSWORD is created and can be acccessed via JDBC URL $jdbc_url"
 
       # PostgreSQL schema
-      - name: Manage DB Schema
+      - name: Deploy DB Schema
         if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Deploy') }}
         run: |
           endpoint=$(aws rds describe-db-instances \
