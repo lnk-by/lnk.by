@@ -119,7 +119,7 @@ jobs:
 
       # API Gateway
       - name: Delete API Gateway
-        if: ${{ inputs.api_gateway != '' }}
+        if: ${{ inputs.api_gateway != '' && contains(inputs.operation, 'Remove') }}
         run: |
           id=$(aws apigatewayv2 get-apis --query "Items[?Name=='$HTTP_API_NAME'].ApiId" --output text)
           [[ -n "$id" ]] && aws apigatewayv2 delete-api --api-id "$id"
@@ -159,7 +159,7 @@ jobs:
 
       # API Gateway
       - name: Create API Gateway
-        if: ${{ inputs.api_gateway != '' }}
+        if: ${{ inputs.api_gateway != '' && contains(inputs.operation, 'Deploy') }}
         run: |
             aws apigatewayv2 create-api --name "$HTTP_API_NAME" --protocol-type HTTP
 
