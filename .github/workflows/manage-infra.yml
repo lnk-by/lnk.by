@@ -73,10 +73,10 @@ on:
 
 run-name: >-
   ${{ github.event.inputs.operation }}(${{ github.event.inputs.environment }}):
-  ${{ github.event.inputs.api_gateway != '' && ' 📡' }}${{ github.event.inputs.api_gateway }}
-  ${{ github.event.inputs.user_pool != '' && ' 👤' }}${{ github.event.inputs.user_pool }}
-  ${{ github.event.inputs.s3_bucket != '' && ' 🪣' }}${{ github.event.inputs.s3_bucket }}
-  ${{ github.event.inputs.manage_db == 'true' && ' 🐘' }}${{ fromJson(github.event.inputs.rds_data)[0] }}
+  ${{ github.event.inputs.api_gateway != '' && format(' 📡{0}', github.event.inputs.api_gateway) }}
+  ${{ github.event.inputs.user_pool != '' && format(' 👤{0}', github.event.inputs.user_pool) }}
+  ${{ github.event.inputs.s3_bucket != '' && format(' 🪣{0}', github.event.inputs.s3_bucket) }}
+  ${{ github.event.inputs.manage_db == 'true' && ' 🐘' }}
   ${{ github.event.inputs.manage_schema == 'true' && ' 🗂️' }}
 jobs:
   manage:
