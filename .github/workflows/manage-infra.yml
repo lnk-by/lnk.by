@@ -120,7 +120,7 @@ jobs:
 
       # S3 Bucket
       - name: Manage S3
-        if: ${{ inputs.s3_bucket == 'true' && contains(inputs.operation, 'Remove') }}
+        if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Remove') }}
         run: |
           aws s3 rm "s3://$BUCKET_NAME" --recursive || true
           aws s3api delete-bucket --bucket "$BUCKET_NAME"
@@ -133,7 +133,7 @@ jobs:
 
       # PostgreSQL schema
       - name: Manage DB Schema
-        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Remove') }}
+        if: ${{ inputs.manage_schema != '' && contains(inputs.operation, 'Remove') }}
         run: |
           endpoint=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \
@@ -158,7 +158,7 @@ jobs:
 
       # S3 Bucket
       - name: Manage S3
-        if: ${{ inputs.s3_bucket == 'true' && contains(inputs.operation, 'Deploy') }}
+        if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Deploy') }}
         run: |
           aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
 
@@ -176,7 +176,7 @@ jobs:
 
       # PostgreSQL schema
       - name: Manage DB Schema
-        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Deploy') }}
+        if: ${{ inputs.manage_schema != '' && contains(inputs.operation, 'Deploy') }}
         run: |
           endpoint=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \
