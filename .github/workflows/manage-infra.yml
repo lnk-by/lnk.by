@@ -125,12 +125,6 @@ jobs:
           aws s3 rm "s3://$BUCKET_NAME" --recursive || true
           aws s3api delete-bucket --bucket "$BUCKET_NAME"
 
-      # RDS PostgreSQL
-      - name: Manage RDS
-        if: ${{ inputs.rds_data != '' && contains(inputs.operation, 'Remove') }}
-        run: |
-          aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
-
       # PostgreSQL schema
       - name: Manage DB Schema
         if: ${{ inputs.manage_schema != '' && contains(inputs.operation, 'Remove') }}
@@ -141,6 +135,12 @@ jobs:
             --output text)
 
           PGPASSWORD=$DB_PASSWORD psql -h "$endpoint" -U "$DB_USER" -d "$DB_NAME" -f "$DB_SQL_DROP"
+
+      # RDS PostgreSQL
+      - name: Manage RDS
+        if: ${{ inputs.rds_data != '' && contains(inputs.operation, 'Remove') }}
+        run: |
+          aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
 
       # Deploy
 
@@ -173,6 +173,14 @@ jobs:
               --master-username "$DB_USER" \
               --master-user-password "$DB_PASSWORD" \
               --allocated-storage 20
+
+            endpoint=$(aws rds describe-db-instances \
+                --db-instance-identifier "$DB_IDENTIFIER" \
+                --query 'DBInstances[0].Endpoint.Address' \
+                --output text)
+
+            jdbc_url="jdbc:postgresql://$endpoint:5432/$DB_NAME"
+            echo "DB with requested USER and PASSWORD is created and can be acccessed via JDBC URL $jdbc_url"
 
       # PostgreSQL schema
       - name: Manage DB Schema
