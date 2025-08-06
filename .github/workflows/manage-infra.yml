@@ -132,7 +132,7 @@ jobs:
 
       # PostgreSQL schema
       - name: Drop DB Schema
-        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Remove') }}
+        if: ${{ inputs.manage_schema == true && contains(inputs.operation, 'Remove') }}
         run: |
           endpoint=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \
@@ -143,7 +143,7 @@ jobs:
 
       # RDS PostgreSQL
       - name: Drop RDS instance
-        if: ${{ inputs.manage_db == 'true' && contains(inputs.operation, 'Remove') }}
+        if: ${{ inputs.manage_db == true && contains(inputs.operation, 'Remove') }}
         run: |
           aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
 
@@ -169,7 +169,7 @@ jobs:
 
       # RDS PostgreSQL
       - name: Deploy RDS instance
-        if: ${{ inputs.manage_db == 'true' && contains(inputs.operation, 'Deploy') }}
+        if: ${{ inputs.manage_db == true && contains(inputs.operation, 'Deploy') }}
         run: |
             aws rds create-db-instance \
               --db-instance-identifier "$DB_IDENTIFIER" \
@@ -193,7 +193,7 @@ jobs:
 
       # PostgreSQL schema
       - name: Deploy DB Schema
-        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Deploy') }}
+        if: ${{ inputs.manage_schema == true && contains(inputs.operation, 'Deploy') }}
         run: |
           endpoint=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \
