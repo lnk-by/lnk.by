@@ -55,8 +55,12 @@ on:
       rds_data:
         description: 'RDS data (DBID, DB name, username, password), example: db-dev-1,postgres,postgres,mypassword'
         type: string
+      manage_db:
+        description: 'RDS instance'
+        type: boolean
+        default: false
       manage_schema:
-        description: 'PostgreSQL Tables / Schema'
+        description: 'RDS Schema + Tables'
         type: boolean
         default: false
       operation:
@@ -164,7 +168,7 @@ jobs:
 
       # RDS PostgreSQL
       - name: Manage RDS
-        if: ${{ inputs.rds_data != '' && contains(inputs.operation, 'Deploy') }}
+        if: ${{ inputs.manage_db == 'true' && contains(inputs.operation, 'Deploy') }}
         run: |
             aws rds create-db-instance \
               --db-instance-identifier "$DB_IDENTIFIER" \
@@ -188,7 +192,7 @@ jobs:
 
       # PostgreSQL schema
       - name: Manage DB Schema
-        if: ${{ inputs.manage_schema != '' && contains(inputs.operation, 'Deploy') }}
+        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Deploy') }}
         run: |
           endpoint=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \
