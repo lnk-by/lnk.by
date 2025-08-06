@@ -76,7 +76,7 @@ run-name: >-
   ${{ github.event.inputs.api_gateway != '' && ' 📡' }}${{ github.event.inputs.api_gateway }}
   ${{ github.event.inputs.user_pool != '' && ' 👤' }}${{ github.event.inputs.user_pool }}
   ${{ github.event.inputs.s3_bucket != '' && ' 🪣' }}${{ github.event.inputs.s3_bucket }}
-  ${{ github.event.inputs.manage_db == 'true' && format('🐘 {0}', needs.manage.outputs.db_identifier) }}
+  ${{ github.event.inputs.manage_db == 'true' && ' 🐘' }}${{ fromJson(github.event.inputs.rds_data)[0] }}
   ${{ github.event.inputs.manage_schema == 'true' && ' 🗂️' }}
 jobs:
   manage:
@@ -84,8 +84,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
 
-    outputs:
-      db_identifier: ${{ steps.parse_rds.outputs.DB_IDENTIFIER }}
     env:
       AWS_REGION: ${{ github.event.inputs.region }}
       BUCKET_NAME: ${{ github.event.inputs.s3_bucket }}
