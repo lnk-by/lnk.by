@@ -71,12 +71,21 @@ on:
           - 🚀 Deploy
           - 🗑️ Remove
 
+run-name: >-
+  ${{ github.event.inputs.operation }}(${{ github.event.inputs.environment }}):
+  ${{ github.event.inputs.api_gateway != '' && ' 📡' }}${{ github.event.inputs.api_gateway }}
+  ${{ github.event.inputs.user_pool != '' && ' 👤' }}${{ github.event.inputs.user_pool }}
+  ${{ github.event.inputs.s3_bucket != '' && ' 🪣' }}${{ github.event.inputs.s3_bucket }}
+  ${{ github.event.inputs.manage_db == 'true' && format('🐘 {0}', needs.manage.outputs.db_identifier) }}
+  ${{ github.event.inputs.manage_schema == 'true' && ' 🗂️' }}
 jobs:
   manage:
     name: '${{ github.event.inputs.operation }} Infra'
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
 
+    outputs:
+      db_identifier: ${{ steps.parse_rds.outputs.DB_IDENTIFIER }}
     env:
       AWS_REGION: ${{ github.event.inputs.region }}
       BUCKET_NAME: ${{ github.event.inputs.s3_bucket }}
@@ -90,6 +99,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Parse RDS Data
+        id: parse_rds
         if: ${{ inputs.rds_data != '' }}
         run: |
             DB_DATA=$(echo "${{ inputs.rds_data }}" | sed 's/^ *//g' | sed 's/ *$//g' | sed 's/ *, */,/g')
@@ -159,7 +169,9 @@ jobs:
       - name: Create User pool
         if: ${{ inputs.user_pool != '' && contains(inputs.operation, 'Deploy') }}
         run: |
-          aws cognito-idp create-user-pool --pool-name "$USER_POOL_NAME"
+          USER_POOL_JSON=$(aws cognito-idp create-user-pool --pool-name "$USER_POOL_NAME")
+          USER_POOL_ID=$(echo "$USER_POOL_JSON" | grep '"Id":' | cut -d '"' -f4)
+          echo "Created User Pool with ID $USER_POOL_ID"
 
       # S3 Bucket
       - name: Create S3 bucket
