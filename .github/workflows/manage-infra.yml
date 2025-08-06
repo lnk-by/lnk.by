@@ -188,7 +188,7 @@ jobs:
                 --query 'DBInstances[0].Endpoint.Address' \
                 --output text)
 
-            jdbc_url="jdbc:postgresql://$endpoint:5432/$DB_NAME"
+            jdbc_url="jdbc:postgresql://$endpoint:5432/${DB_NAME}?sslmode=require"
             echo "DB with requested USER and PASSWORD is created and can be acccessed via JDBC URL $jdbc_url"
 
       # PostgreSQL schema
