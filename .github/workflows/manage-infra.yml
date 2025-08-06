@@ -73,7 +73,7 @@ on:
           - 🔁 Remove & Deploy
 
 run-name: >-
-  ${{ github.event.inputs.operation == 'Deploy' && '🚀' || github.event.inputs.operation == 'Remove' && '🗑️' || github.event.inputs.operation == 'Remove & Deploy' && '🔁' || '' }}
+  ${{ github.event.inputs.operation }}(${{ github.event.inputs.environment }}):
   ${{ github.event.inputs.api_gateway != '' && format('📡 {0}', github.event.inputs.api_gateway) || '' }}
   ${{ github.event.inputs.user_pool != '' && format('👤 {0}', github.event.inputs.user_pool) || '' }}
   ${{ github.event.inputs.s3_bucket != '' && format('🪣 {0}', github.event.inputs.s3_bucket) || '' }}
