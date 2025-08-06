@@ -71,6 +71,7 @@ jobs:
   manage:
     name: '${{ github.event.inputs.operation }} Infra'
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
 
     env:
       AWS_REGION: ${{ github.event.inputs.region }}
