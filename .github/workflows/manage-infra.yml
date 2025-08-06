@@ -70,9 +70,10 @@ on:
         options:
           - 🚀 Deploy
           - 🗑️ Remove
+          - 🔁 Remove & Deploy
 
 run-name: >-
-  🗑️ ${{ github.event.inputs.operation }}(${{ github.event.inputs.environment }}):
+  ${{ github.event.inputs.operation == 'Deploy' && '🚀' || github.event.inputs.operation == 'Remove' && '🗑️' || github.event.inputs.operation == 'Remove & Deploy' && '🔁' || '' }}
   ${{ github.event.inputs.api_gateway != '' && format('📡 {0}', github.event.inputs.api_gateway) || '' }}
   ${{ github.event.inputs.user_pool != '' && format('👤 {0}', github.event.inputs.user_pool) || '' }}
   ${{ github.event.inputs.s3_bucket != '' && format('🪣 {0}', github.event.inputs.s3_bucket) || '' }}
@@ -157,11 +158,6 @@ jobs:
 
       # Deploy
 
-      # API Gateway
-      - name: Create API Gateway
-        if: ${{ inputs.api_gateway != '' && contains(inputs.operation, 'Deploy') }}
-        run: |
-            aws apigatewayv2 create-api --name "$HTTP_API_NAME" --protocol-type HTTP
 
       # Cognito
       - name: Create User pool
@@ -169,7 +165,38 @@ jobs:
         run: |
           USER_POOL_JSON=$(aws cognito-idp create-user-pool --pool-name "$USER_POOL_NAME")
           USER_POOL_ID=$(echo "$USER_POOL_JSON" | grep '"Id":' | cut -d '"' -f4)
+
+          USER_POOL_CLIENT_ID=$(aws cognito-idp create-user-pool-client \
+          --user-pool-id "$USER_POOL_ID" \
+          --client-name "my-app-client" \
+          --generate-secret false \
+          --query 'UserPoolClient.ClientId' \
+          --output text)
+
           echo "Created User Pool with ID $USER_POOL_ID"
+          echo "Created User Pool Client with ID $USER_POOL_CLIENT_ID"
+
+      # API Gateway
+      - name: Create API Gateway
+        if: ${{ inputs.api_gateway != '' && contains(inputs.operation, 'Deploy') }}
+        run: |
+            USER_POOL_ID=$(aws cognito-idp list-user-pools --max-results 50 --query "UserPools[?Name=='$USER_POOL_NAME'].Id" --output text)
+            APP_CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$USER_POOL_ID" --query 'UserPoolClients[0].ClientId' --output text)
+
+            API_ID=$(aws apigatewayv2 create-api --name "$HTTP_API_NAME" --protocol-type HTTP --query 'ApiId' --output text)
+
+            AUTHORIZER_ID=$(aws apigatewayv2 create-authorizer \
+            --api-id "$API_ID" \
+            --authorizer-type JWT \
+            --name CognitoAuthorizer \
+            --identity-source '$request.header.Authorization' \
+            --jwt-configuration "Issuer=https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID},Audience=${APP_CLIENT_ID}" \
+            --authorizer-result-ttl-in-seconds 300 \
+            --query 'AuthorizerId' \
+            --output text)
+
+            echo "Created API gateway with ID $API_ID"
+            echo "Created Authorizer with ID $AUTHORIZER_ID"
 
       # S3 Bucket
       - name: Create S3 bucket
@@ -198,8 +225,9 @@ jobs:
                 --query 'DBInstances[0].Endpoint.Address' \
                 --output text)
 
+            db_url="postgresql://$endpoint:5432/${DB_NAME}"
             jdbc_url="jdbc:postgresql://$endpoint:5432/${DB_NAME}?sslmode=require"
-            echo "DB with requested USER and PASSWORD is created and can be acccessed via JDBC URL $jdbc_url"
+            echo "DB with requested USER and PASSWORD is created and can be acccessed via DB URL $db_url or JDBC URL $jdbc_url"
 
       # PostgreSQL schema
       - name: Deploy DB Schema
