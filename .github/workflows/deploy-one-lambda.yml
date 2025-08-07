@@ -113,9 +113,9 @@ jobs:
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: ${{ vars.AWS_REGION }}
-      DB_URL: ${{ secrets.DB_URL }}
-      DB_USER: ${{ secrets.DB_USER }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      DB_URL: ${{ vars.DB_URL }}
+      DB_USER: ${{ vars.DB_USER }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       AWS_API_ID: ${{ vars.AWS_API_ID }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
@@ -237,7 +237,7 @@ jobs:
         done
 
         echo "🔧 Removing integrations if exist..."
-        integration_ids=$(aws apigatewayv2 get-integrations --api-id "$AWS_API_ID" --query "Items[?IntegrationUri=='arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:$out_name'].IntegrationId" --output text || true)
+        integration_ids=$(aws apigatewayv2 get-integrations --api-id "$AWS_API_ID" --query "Items[?IntegrationUri=='arn:aws:lambda:$AWS_REGION:$AWS_ACCOUNT_ID:function:$out_name'].IntegrationId" --output text || true)
         for integration_id in $integration_ids; do
           echo "🔧 Removing integration $integration_id"
           set +e
@@ -270,7 +270,7 @@ jobs:
           --user-pool-id "$AWS_USER_POOL_ID" \
           --lambda-config "{}" \
           --auto-verified-attributes email \
-          --region "$AWS_DEFAULT_REGION"
+          --region "$AWS_REGION"
         echo "✅ Lambda for Congnito removal is done"
 
     - name: Remove Stats Invocation
@@ -411,7 +411,7 @@ jobs:
           permission_id="${permission_id}_all"
         fi
         # the same route can be duplicate, so we prevent build failure by ignoring the command failure
-        source_arn="arn:aws:execute-api:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:$AWS_API_ID/*/$method$route$permission_suffix"
+        source_arn="arn:aws:execute-api:$AWS_REGION:$AWS_ACCOUNT_ID:$AWS_API_ID/*/$method$route$permission_suffix"
         if [[ "${{ inputs.manage }}" == "CORS" && "${{ inputs.do_build }}" == "false" ]]; then
           echo "safely run add-permission"
           aws lambda add-permission --function-name "$out_name" --statement-id "$permission_id" --action lambda:InvokeFunction --principal apigateway.amazonaws.com --source-arn "$source_arn" || true
@@ -423,7 +423,7 @@ jobs:
         integration_id=$(aws apigatewayv2 create-integration \
           --api-id "$AWS_API_ID" \
           --integration-type AWS_PROXY \
-          --integration-uri "arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:$out_name" \
+          --integration-uri "arn:aws:lambda:$AWS_REGION:$AWS_ACCOUNT_ID:function:$out_name" \
           --payload-format-version "2.0" \
           --query 'IntegrationId' \
           --output text)
@@ -460,17 +460,17 @@ jobs:
         out_name="${out_name}"
         aws lambda add-permission \
           --function-name "$out_name" \
-          --region "$AWS_DEFAULT_REGION" \
+          --region "$AWS_REGION" \
           --statement-id "AllowCognitoInvokePostConfirmation" \
           --action "lambda:InvokeFunction" \
           --principal cognito-idp.amazonaws.com \
-          --source-arn "arn:aws:cognito-idp:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:userpool/$AWS_USER_POOL_ID"
+          --source-arn "arn:aws:cognito-idp:$AWS_REGION:$AWS_ACCOUNT_ID:userpool/$AWS_USER_POOL_ID"
 
         aws cognito-idp update-user-pool \
           --user-pool-id "$AWS_USER_POOL_ID" \
-          --lambda-config "PostConfirmation=arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:$out_name" \
+          --lambda-config "PostConfirmation=arn:aws:lambda:$AWS_REGION:$AWS_ACCOUNT_ID:function:$out_name" \
           --auto-verified-attributes email \
-          --region "$AWS_DEFAULT_REGION"
+          --region "$AWS_REGION"
         echo "✅ Lambda for Congnito configuraion is done"
 
     - name: Config Stats Invocation
@@ -483,7 +483,7 @@ jobs:
           --statement-id allow-redirect-lambda \
           --action lambda:InvokeFunction \
           --principal lambda.amazonaws.com \
-          --source-arn "arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:aws_redirect"
+          --source-arn "arn:aws:lambda:$AWS_REGION:$AWS_ACCOUNT_ID:function:aws_redirect"
         set -e
 
         aws iam put-role-policy \
@@ -495,7 +495,7 @@ jobs:
               {
                 \"Effect\": \"Allow\",
                 \"Action\": \"lambda:InvokeFunction\",
-                \"Resource\": \"arn:aws:lambda:$AWS_DEFAULT_REGION:$AWS_ACCOUNT_ID:function:$out_name\"
+                \"Resource\": \"arn:aws:lambda:$AWS_REGION:$AWS_ACCOUNT_ID:function:$out_name\"
               }
             ]
           }"
