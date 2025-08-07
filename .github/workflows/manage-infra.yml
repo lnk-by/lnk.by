@@ -178,8 +178,11 @@ jobs:
       - name: Create User pool
         if: ${{ inputs.user_pool != '' && contains(inputs.operation, 'Deploy') }}
         run: |
+          echo "create user pool 1"
           USER_POOL_JSON=$(aws cognito-idp create-user-pool --pool-name "$USER_POOL_NAME")
+          echo "create user pool 2"
           USER_POOL_ID=$(echo "$USER_POOL_JSON" | grep '"Id":' | cut -d '"' -f4)
+          echo "create user pool 3"
 
           USER_POOL_CLIENT_ID=$(aws cognito-idp create-user-pool-client \
           --user-pool-id "$USER_POOL_ID" \
