@@ -134,7 +134,7 @@ jobs:
         run: |
           id=$(aws cognito-idp list-user-pools --max-results 50 --query "UserPools[?Name=='$USER_POOL_NAME'].Id" --output text)
           [[ -n "$id" ]] && aws cognito-idp delete-user-pool --user-pool-id "$id"
-          gh variable get USER_POOL_ID --env "${{ github.event.inputs.environment }}" && gh variable delete USER_POOL_ID --env "${{ github.event.inputs.environment }}"
+          gh variable get AWS_USER_POOL_ID --env "${{ github.event.inputs.environment }}" && gh variable delete AWS_USER_POOL_ID --env "${{ github.event.inputs.environment }}"
 
 
       # S3 Bucket
@@ -190,7 +190,7 @@ jobs:
 
           echo "Created User Pool with ID $USER_POOL_ID"
           echo "Created User Pool Client with ID $USER_POOL_CLIENT_ID"
-          gh variable set USER_POOL_ID --env "${{ github.event.inputs.environment }}" --body "$USER_POOL_ID"
+          gh variable set AWS_USER_POOL_ID --env "${{ github.event.inputs.environment }}" --body "$USER_POOL_ID"
 
       # API Gateway
       - name: Create API Gateway
