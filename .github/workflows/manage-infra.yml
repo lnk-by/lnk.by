@@ -207,7 +207,6 @@ jobs:
             --name CognitoAuthorizer \
             --identity-source '$request.header.Authorization' \
             --jwt-configuration "Issuer=https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID},Audience=${APP_CLIENT_ID}" \
-            --authorizer-result-ttl-in-seconds 300 \
             --query 'AuthorizerId' \
             --output text)
 
