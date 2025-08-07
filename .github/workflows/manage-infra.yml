@@ -126,7 +126,9 @@ jobs:
         run: |
           id=$(aws apigatewayv2 get-apis --query "Items[?Name=='$HTTP_API_NAME'].ApiId" --output text)
           [[ -n "$id" ]] && aws apigatewayv2 delete-api --api-id "$id"
-          gh variable get AWS_API_ID --env "${{ github.event.inputs.environment }}" && gh variable delete AWS_API_ID --env "${{ github.event.inputs.environment }}"
+          for VAR in AWS_API_ID AWS_AUTHORIZER_ID; do
+            gh variable get "$VAR" --env "${{ github.event.inputs.environment }}" && gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
+          done
 
       # Cognito
       - name: Delete User pool
@@ -185,11 +187,13 @@ jobs:
           --user-pool-id "$USER_POOL_ID" \
           --client-name 'my-app-client' \
           --no-generate-secret \
+          --explicit-auth-flows "ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH ALLOW_USER_SRP_AUTH"
           --query 'UserPoolClient.ClientId' \
           --output text)
 
           echo "Created User Pool with ID $USER_POOL_ID"
           echo "Created User Pool Client with ID $USER_POOL_CLIENT_ID"
+          gh variable set AWS_APP_CLIENT_ID --env "${{ github.event.inputs.environment }}" --body "$USER_POOL_CLIENT_ID"
           gh variable set AWS_USER_POOL_ID --env "${{ github.event.inputs.environment }}" --body "$USER_POOL_ID"
 
       # API Gateway
@@ -213,6 +217,7 @@ jobs:
             echo "Created API gateway with ID $API_ID"
             echo "Created Authorizer with ID $AUTHORIZER_ID"
             gh variable set AWS_API_ID --env "${{ github.event.inputs.environment }}" --body "$API_ID"
+            gh variable set AWS_AUTHORIZER_ID --env "${{ github.event.inputs.environment }}" --body "$AUTHORIZER_ID"
 
       # S3 Bucket
       - name: Create S3 bucket
