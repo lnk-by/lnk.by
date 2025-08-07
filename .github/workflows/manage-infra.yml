@@ -183,8 +183,8 @@ jobs:
 
           USER_POOL_CLIENT_ID=$(aws cognito-idp create-user-pool-client \
           --user-pool-id "$USER_POOL_ID" \
-          --client-name "my-app-client" \
-          --generate-secret false \
+          --client-name 'my-app-client' \
+          --generate-secret 'false' \
           --query 'UserPoolClient.ClientId' \
           --output text)
 
