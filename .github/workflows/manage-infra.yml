@@ -1,4 +1,4 @@
-name: Manage AWS Infrastructure
+name: 🖧 Manage AWS Infrastructure
 
 on:
   workflow_dispatch:
@@ -73,6 +73,7 @@ on:
           - 🔁 Remove & Deploy
 
 run-name: >-
+  🖧
   ${{ github.event.inputs.operation }}(${{ github.event.inputs.environment }}):
   ${{ github.event.inputs.api_gateway != '' && format('📡 {0}', github.event.inputs.api_gateway) || '' }}
   ${{ github.event.inputs.user_pool != '' && format('👤 {0}', github.event.inputs.user_pool) || '' }}
@@ -125,6 +126,7 @@ jobs:
         run: |
           id=$(aws apigatewayv2 get-apis --query "Items[?Name=='$HTTP_API_NAME'].ApiId" --output text)
           [[ -n "$id" ]] && aws apigatewayv2 delete-api --api-id "$id"
+          gh variable get AWS_API_ID --env "${{ github.event.inputs.environment }}" && gh variable delete AWS_API_ID --env "${{ github.event.inputs.environment }}"
 
       # Cognito
       - name: Delete User pool
@@ -132,6 +134,8 @@ jobs:
         run: |
           id=$(aws cognito-idp list-user-pools --max-results 50 --query "UserPools[?Name=='$USER_POOL_NAME'].Id" --output text)
           [[ -n "$id" ]] && aws cognito-idp delete-user-pool --user-pool-id "$id"
+          gh variable get USER_POOL_ID --env "${{ github.event.inputs.environment }}" && gh variable delete USER_POOL_ID --env "${{ github.event.inputs.environment }}"
+
 
       # S3 Bucket
       - name: Remove S3 bucket
@@ -157,8 +161,17 @@ jobs:
         if: ${{ inputs.manage_db == true && contains(inputs.operation, 'Remove') }}
         run: |
           aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
+          for VAR in DB_URL JDBC_URL DB_USER; do
+            gh variable get "$VAR" --env "${{ github.event.inputs.environment }}" && gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
+          done
+          gh secret set DB_PASSWORD --env "${{ github.event.inputs.environment }}" --body "$DB_PASSWORD"
 
       # Deploy
+
+      - name: Save general parameters for deployment
+        if: ${{ contains(inputs.operation, 'Deploy') }}
+        run: |
+          gh variable set AWS_REGION --env "${{ github.event.inputs.environment }}" --body "$AWS_REGION"
 
 
       # Cognito
@@ -177,6 +190,7 @@ jobs:
 
           echo "Created User Pool with ID $USER_POOL_ID"
           echo "Created User Pool Client with ID $USER_POOL_CLIENT_ID"
+          gh variable set USER_POOL_ID --env "${{ github.event.inputs.environment }}" --body "$USER_POOL_ID"
 
       # API Gateway
       - name: Create API Gateway
@@ -199,6 +213,7 @@ jobs:
 
             echo "Created API gateway with ID $API_ID"
             echo "Created Authorizer with ID $AUTHORIZER_ID"
+            gh variable set AWS_API_ID --env "${{ github.event.inputs.environment }}" --body "$API_ID"
 
       # S3 Bucket
       - name: Create S3 bucket
@@ -232,6 +247,11 @@ jobs:
             db_url="postgresql://$endpoint:5432/${DB_NAME}"
             jdbc_url="jdbc:postgresql://$endpoint:5432/${DB_NAME}?sslmode=require"
             echo "DB with requested USER and PASSWORD is created and can be acccessed via DB URL $db_url or JDBC URL $jdbc_url"
+            gh variable set DB_URL --env "${{ github.event.inputs.environment }}" --body "$db_url"
+            gh variable set JDBC_URL --env "${{ github.event.inputs.environment }}" --body "$jdbc_url"
+            gh variable set DB_USER --env "${{ github.event.inputs.environment }}" --body "$DB_USER"
+            gh secret set DB_PASSWORD --env "${{ github.event.inputs.environment }}" --body "$DB_PASSWORD"
+
 
       # PostgreSQL schema
       - name: Deploy DB Schema
