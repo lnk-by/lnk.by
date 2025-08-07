@@ -139,7 +139,7 @@ jobs:
         run: |
           aws s3 rm "s3://$BUCKET_NAME" --recursive || true
           aws s3api delete-bucket --bucket "$BUCKET_NAME"
-          gh variable list --env "${{ github.event.inputs.environment }}" | grep -q '^S3_BUCKET ' && gh variable delete S3_BUCKET --env "${{ github.event.inputs.environment }}"
+          gh variable get S3_BUCKET --env "${{ github.event.inputs.environment }}" && gh variable delete S3_BUCKET --env "${{ github.event.inputs.environment }}"
 
       # PostgreSQL schema
       - name: Drop DB Schema
