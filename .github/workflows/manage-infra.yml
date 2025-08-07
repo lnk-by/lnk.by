@@ -92,6 +92,7 @@ jobs:
       HTTP_API_NAME: ${{ github.event.inputs.api_gateway }}
       DB_SQL_CREATE: ./shared/db/create.sql
       DB_SQL_DROP: ./shared/db/drop.sql
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
     steps:
       - name: Checkout
@@ -138,6 +139,7 @@ jobs:
         run: |
           aws s3 rm "s3://$BUCKET_NAME" --recursive || true
           aws s3api delete-bucket --bucket "$BUCKET_NAME"
+          gh variable list --env "$ENVIRONMENT_NAME" | grep -q '^S3_BUCKET ' && gh variable delete S3_BUCKET --env "${{ github.event.inputs.environment }}"
 
       # PostgreSQL schema
       - name: Drop DB Schema
@@ -203,6 +205,8 @@ jobs:
         if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Deploy') }}
         run: |
           aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
+          gh variable set S3_BUCKET --env "${{ github.event.inputs.environment }}" --body "$BUCKET_NAME"
+
 
       # RDS PostgreSQL
       - name: Deploy RDS instance
