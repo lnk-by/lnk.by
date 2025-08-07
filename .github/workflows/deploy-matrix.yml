@@ -1,4 +1,4 @@
-name: Deploy or Remove Selected Lambdas
+name: 🗄️ Deploy or Remove Selected Lambdas
 
 on:
   workflow_dispatch:

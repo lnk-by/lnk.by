@@ -1,4 +1,4 @@
-name: Deploy or Remove One Lambda
+name: (λ) Deploy or Remove One Lambda
 
 on:
   workflow_dispatch:
