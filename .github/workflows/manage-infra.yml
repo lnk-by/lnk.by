@@ -187,7 +187,7 @@ jobs:
           --user-pool-id "$USER_POOL_ID" \
           --client-name 'my-app-client' \
           --no-generate-secret \
-          --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH ALLOW_USER_SRP_AUTH
+          --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH ALLOW_USER_SRP_AUTH \
           --query 'UserPoolClient.ClientId' \
           --output text)
 
