@@ -214,6 +214,8 @@ jobs:
             --query 'AuthorizerId' \
             --output text)
 
+            aws apigatewayv2 create-stage --api-id "$API_ID" --stage-name '$default' --auto-deploy
+
             echo "Created API gateway with ID $API_ID"
             echo "Created Authorizer with ID $AUTHORIZER_ID"
             gh variable set AWS_API_ID --env "${{ github.event.inputs.environment }}" --body "$API_ID"
