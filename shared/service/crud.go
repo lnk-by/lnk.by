@@ -342,13 +342,6 @@ func getClaimsFromAuthorization(authHeader string) map[string]interface{} {
 		parts := strings.Split(token, ".")
 		if len(parts) == 3 {
 			payloadSegment := parts[1]
-
-			// Pad to make it valid base64
-			missingPadding := len(payloadSegment) % 4
-			if missingPadding != 0 {
-				payloadSegment += strings.Repeat("=", 4-missingPadding)
-			}
-
 			decoded, err := base64.RawURLEncoding.DecodeString(payloadSegment)
 			if err != nil {
 				slog.Error("Failed to decode JWT payload:", "error", err)
