@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"os"
@@ -105,7 +106,9 @@ var (
 )
 
 func CreateShortURL(ctx context.Context, requestBody []byte, userID *uuid.UUID) (int, string) {
+	slog.Info("CreateShortURL 1")
 	url, err := service.Parse[*ShortURL](ctx, requestBody)
+	slog.Info("CreateShortURL 2", "url", url)
 	if err != nil {
 		return http.StatusBadRequest, http.StatusText(http.StatusBadRequest)
 	}
@@ -122,6 +125,7 @@ func CreateShortURL(ctx context.Context, requestBody []byte, userID *uuid.UUID) 
 		url.HourlyLimit = math.MaxInt32
 	}
 
+	slog.Info("CreateShortURL 3", "url", url)
 	status, body := service.CreateRecord(ctx, CreateSQL, url, 0)
 
 	if status < http.StatusMultipleChoices {
