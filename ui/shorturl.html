@@ -10,11 +10,7 @@
   <div class="container">
     <h1>Make Links Short Again</h1>
     <form id="shortenUrlForm">
-      <select id="apiSelector">
-        <option value="http://localhost:8080">localhost</option>
-        <option value="https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com">prod</option>
-        <option value="https://lpbmqb80od.execute-api.us-east-1.amazonaws.com">dev</option>
-      </select>
+      <select id="apiSelector"/>
       <label>Enter your long URL you want to make short</label>
       <input type="text" id="urlInput" placeholder="https://example.com/my-long-url-to-be-shorten" required />
       <input type="text" id="urlKey" placeholder="enter key for custom mapping"/>
@@ -26,7 +22,13 @@
     <a href="./auth.html">Sign Up / Log In</a>
   </div>
 
+  <script src="./general.js"></script>
+
   <script>
+    var envConfig;
+    initConfiguration().then(config => {
+        envConfig = config;
+    });
     const urlInput = document.getElementById("urlInput");
     const resultLabel = document.getElementById("resultLabel");
 

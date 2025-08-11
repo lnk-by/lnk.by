@@ -41,6 +41,8 @@ jobs:
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       S3_BUCKET: ${{ vars.S3_BUCKET }}
+      AWS_API_ID: ${{ vars.AWS_API_ID }}
+      AWS_APP_CLIENT_ID: ${{ vars.AWS_APP_CLIENT_ID }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
@@ -63,5 +65,12 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           echo environment=${{ inputs.environment }}
+          echo '{
+            "'"$environment"'": {
+              "region": "'"$AWS_REGION"'",
+              "apiId": "'"$AWS_API_ID"'",
+              "clientId": "'"$AWS_APP_CLIENT_ID"'"
+            }
+          }' > ./ui/env-config.json
           aws s3 cp ./ui s3://$S3_BUCKET/ui --recursive --region "$AWS_REGION"
           aws s3 cp ./landingpages/templates s3://$S3_BUCKET/landingpages/templates --recursive --region "$AWS_REGION"

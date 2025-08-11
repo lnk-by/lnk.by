@@ -15,12 +15,7 @@
   <div class="container">
     <h1>Make Pages to land Again</h1>
     <form id="landingpageForm">
-      <select id="apiSelector">
-        <option value="">-- Select API Endpoint --</option>
-        <option value="http://localhost:8080">localhost</option>
-        <option value="https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com">prod</option>
-        <option value="https://lpbmqb80od.execute-api.us-east-1.amazonaws.com">dev</option>
-      </select>
+      <select id="apiSelector"/>
 
       <div id="templateBlock" class="hidden">
         <label>Choose template</label>
@@ -44,7 +39,13 @@
     <a href="./auth.html">Sign Up / Log In</a>
   </div>
 
+  <script src="./general.js"></script>
+
   <script>
+    var envConfig;
+    initConfiguration().then(config => {
+        envConfig = config;
+    });
     const apiSelector = document.getElementById('apiSelector');
     const templateBlock = document.getElementById('templateBlock');
     const templateSelector = document.getElementById('templateSelector');
