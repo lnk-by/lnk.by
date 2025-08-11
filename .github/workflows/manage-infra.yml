@@ -226,6 +226,23 @@ jobs:
         if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Deploy') }}
         run: |
           aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
+          # Disable block public access
+          aws s3api put-bucket-public-access-block --bucket "$BUCKET_NAME" --public-access-block-configuration BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false
+          # Add bucket policy for public read
+          aws s3api put-bucket-policy \
+            --bucket "$BUCKET_NAME" \
+            --policy "{
+              \"Version\": \"2012-10-17\",
+              \"Statement\": [
+                {
+                  \"Sid\": \"PublicReadGetObject\",
+                  \"Effect\": \"Allow\",
+                  \"Principal\": \"*\",
+                  \"Action\": \"s3:GetObject\",
+                  \"Resource\": \"arn:aws:s3:::$BUCKET_NAME/*\"
+                }
+              ]
+            }"
           gh variable set S3_BUCKET --env "${{ github.event.inputs.environment }}" --body "$BUCKET_NAME"
 
 
