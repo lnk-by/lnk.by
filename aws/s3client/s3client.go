@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"net"
 	"os"
 	"strings"
 
@@ -28,6 +29,12 @@ func InitializeFromEnvironment(ctx context.Context) {
 	s3Client = s3.NewFromConfig(cfg)
 	s3Bucket = os.Getenv("S3_BUCKET")
 	slog.Info("Connection to S3", "bucket", s3Bucket)
+
+	addr, err := net.LookupHost("s3.eu-north-1.amazonaws.com")
+	slog.Info("After LookupHost", "addr", addr)
+	if err != nil {
+		slog.Info("LookupHost failed", "error", err)
+	}
 }
 
 func PutString(ctx context.Context, path string, content string) error {
