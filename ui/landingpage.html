@@ -36,6 +36,8 @@
       </div>    
     </form>
     <p id="resultLabel"></p>
+    <a id="resultLink" href="#" target="_blank"></a>
+    <a href="./auth.html">Sign Up / Log In</a>
     <a href="./auth.html">Sign Up / Log In</a>
   </div>
 
@@ -127,6 +129,9 @@
         }
         const data = await response.json();
         resultLabel.textContent = `Landing page ${data.id} is created`
+        const resultLink = document.getElementById("resultLink");
+        resultLink.href = `${window.location.origin}/landingpages/templates/${templateSelector.options[templateSelector.selectedIndex].text}.html?conf=../conf/${data.id}.json&style=${themeSelector.value}`;
+        resultLink.textContent = resultLink.href;
       } catch (err) {
         resultLabel.textContent = "Error: " + err.message + " " + apiEndpoint;
       }
@@ -142,8 +147,9 @@
       themeSelector.innerHTML = '';
       selected.style.forEach(style => {
         const option = document.createElement('option');
-        option.value = style;
-        option.textContent = style;
+        const fileName = style.split('/').pop()
+        option.value = fileName;
+        option.textContent = fileName;
         themeSelector.appendChild(option);
       });
 
