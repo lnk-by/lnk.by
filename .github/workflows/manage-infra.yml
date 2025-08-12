@@ -127,7 +127,9 @@ jobs:
           id=$(aws apigatewayv2 get-apis --query "Items[?Name=='$HTTP_API_NAME'].ApiId" --output text)
           [[ -n "$id" ]] && aws apigatewayv2 delete-api --api-id "$id"
           for VAR in AWS_API_ID AWS_AUTHORIZER_ID; do
-            gh variable get "$VAR" --env "${{ github.event.inputs.environment }}" && gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
+            if gh variable list --env "${{ github.event.inputs.environment }}" --json name --jq '.[].name' | egrep "^${VAR}\$"; then
+              gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
+            fi
           done
 
       # Cognito
@@ -136,7 +138,9 @@ jobs:
         run: |
           id=$(aws cognito-idp list-user-pools --max-results 50 --query "UserPools[?Name=='$USER_POOL_NAME'].Id" --output text)
           [[ -n "$id" ]] && aws cognito-idp delete-user-pool --user-pool-id "$id"
-          gh variable get AWS_USER_POOL_ID --env "${{ github.event.inputs.environment }}" && gh variable delete AWS_USER_POOL_ID --env "${{ github.event.inputs.environment }}"
+          if gh variable list --env "${{ github.event.inputs.environment }}" --json name --jq '.[].name' | egrep '^AWS_USER_POOL_ID$'; then
+            gh variable delete AWS_USER_POOL_ID --env "${{ github.event.inputs.environment }}"
+          fi
 
 
       # S3 Bucket
@@ -145,7 +149,9 @@ jobs:
         run: |
           aws s3 rm "s3://$BUCKET_NAME" --recursive || true
           aws s3api delete-bucket --bucket "$BUCKET_NAME"
-          gh variable get S3_BUCKET --env "${{ github.event.inputs.environment }}" && gh variable delete S3_BUCKET --env "${{ github.event.inputs.environment }}"
+          if gh variable list --env "${{ github.event.inputs.environment }}" --json name --jq '.[].name' | egrep '^S3_BUCKET$'; then
+            gh variable delete S3_BUCKET --env "${{ github.event.inputs.environment }}"
+          fi
 
       # PostgreSQL schema
       - name: Drop DB Schema
@@ -164,7 +170,9 @@ jobs:
         run: |
           aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
           for VAR in DB_URL JDBC_URL DB_USER; do
-            gh variable get "$VAR" --env "${{ github.event.inputs.environment }}" && gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
+            if gh variable list --env "${{ github.event.inputs.environment }}" --json name --jq '.[].name' | egrep "^${VAR}\$"; then
+              gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
+            fi
           done
           gh secret set DB_PASSWORD --env "${{ github.event.inputs.environment }}" --body "$DB_PASSWORD"
 
