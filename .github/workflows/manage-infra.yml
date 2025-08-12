@@ -227,7 +227,7 @@ jobs:
         run: |
           - name: Ensure S3 VPC Endpoint exists
             run: |
-              set -euo pipefail
+              set -eu
 
               SERVICE="com.amazonaws.${AWS_REGION}.s3"
 
