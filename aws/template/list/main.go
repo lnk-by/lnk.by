@@ -16,20 +16,20 @@ import (
 func listLandingPageTemplate(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	templatePaths, err := s3client.List(ctx, landingpage.Path, "html")
 	if err != nil {
-		return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError, Body: err.Error(), Headers: adapter.StandardHeaders}, nil
+		return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError, Body: toJSON(err), Headers: adapter.StandardHeaders}, nil
 	}
 
 	var templates []landingpage.LandingPageTemplate
 	for _, templatePath := range templatePaths {
 		template, err := landingpage.RetrieveLandingPageTemplate(ctx, fileNameFromPath(templatePath))
 		if err != nil {
-			return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError, Body: err.Error(), Headers: adapter.StandardHeaders}, nil
+			return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError, Body: toJSON(err), Headers: adapter.StandardHeaders}, nil
 		}
 		templates = append(templates, template)
 	}
 	bytes, err := json.Marshal(templates)
 	if err != nil {
-		return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError, Body: err.Error(), Headers: adapter.StandardHeaders}, nil
+		return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError, Body: toJSON(err), Headers: adapter.StandardHeaders}, nil
 	}
 
 	return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusOK, Body: string(bytes), Headers: adapter.StandardHeaders}, nil
@@ -38,6 +38,13 @@ func listLandingPageTemplate(ctx context.Context, request events.APIGatewayV2HTT
 func fileNameFromPath(filepath string) string {
 	filename := path.Base(filepath)
 	return strings.TrimSuffix(filename, path.Ext(filename))
+}
+
+func toJSON(err error) string {
+	body, _ := json.Marshal(map[string]string{
+		"error": err.Error(),
+	})
+	return string(body)
 }
 
 func main() {

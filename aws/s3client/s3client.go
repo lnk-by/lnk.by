@@ -86,7 +86,7 @@ func List(ctx context.Context, prefix string, extension string) ([]string, error
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("listing S3 objects: %w", err)
+			return nil, fmt.Errorf("listing S3 objects: s3://%s/%s/*.%s %w", s3Bucket, prefix, extension, err)
 		}
 
 		for _, obj := range page.Contents {
