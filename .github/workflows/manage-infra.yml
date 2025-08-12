@@ -221,47 +221,10 @@ jobs:
             gh variable set AWS_API_ID --env "${{ github.event.inputs.environment }}" --body "$API_ID"
             gh variable set AWS_AUTHORIZER_ID --env "${{ github.event.inputs.environment }}" --body "$AUTHORIZER_ID"
 
-
       - name: Ensure S3 VPC Endpoint exists
         if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Deploy') }}
         run: |
-          - name: Ensure S3 VPC Endpoint exists
-            run: |
-              SERVICE="com.amazonaws.${AWS_REGION}.s3"
-
-              echo "🔍 Looking for default VPC in region $AWS_REGION..."
-              VPC_ID=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output text)
-
-              if [[ "$VPC_ID" == "None" || -z "$VPC_ID" ]]; then
-                echo "❌ No default VPC found in $AWS_REGION" >&2
-                exit 1
-              fi
-
-              echo "Default VPC ID: $VPC_ID"
-
-              echo "🔎 Checking for existing S3 VPC endpoint in VPC $VPC_ID..."
-              ENDPOINT_ID=$(aws ec2 describe-vpc-endpoints \
-                --filters Name=vpc-id,Values="$VPC_ID" Name=service-name,Values="$SERVICE" \
-                --query "VpcEndpoints[0].VpcEndpointId" \
-                --output text)
-
-              if [[ "$ENDPOINT_ID" != "None" && -n "$ENDPOINT_ID" ]]; then
-                echo "✅ S3 VPC Endpoint already exists: $ENDPOINT_ID"
-                exit 0
-              fi
-
-              echo "No S3 VPC endpoint found. Retrieving route tables for VPC $VPC_ID..."
-              ROUTE_TABLES=$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="$VPC_ID" --query "RouteTables[].RouteTableId" --output text)
-
-              if [[ -z "$ROUTE_TABLES" ]]; then
-                echo "❌ No route tables found for VPC $VPC_ID" >&2
-                exit 1
-              fi
-
-              echo "➕ Creating S3 VPC endpoint for VPC $VPC_ID..."
-              aws ec2 create-vpc-endpoint --vpc-id "$VPC_ID" --service-name "$SERVICE" --route-table-ids $ROUTE_TABLES --vpc-endpoint-type Gateway
-
-              echo "✅ S3 VPC Endpoint created successfully."
+          echo "just test"
 
 
       # S3 Bucket
