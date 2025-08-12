@@ -375,10 +375,10 @@ jobs:
         done
 
         echo "🔧 Configuring environment..."
-        echo "Configurating lambda: Variables={DB_URL=$DB_URL,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,S3_BUCKET=$S3_BUCKET}"
+        echo "Configurating lambda: Variables={DB_URL=$DB_URL,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,S3_BUCKET=$S3_BUCKET,AWS_REGION=$AWS_REGION}"
         aws lambda update-function-configuration \
           --function-name "$out_name" \
-          --environment "Variables={DB_URL=$DB_URL,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,S3_BUCKET=$S3_BUCKET}"
+          --environment "Variables={DB_URL=$DB_URL,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASSWORD,S3_BUCKET=$S3_BUCKET,AWS_REGION=$AWS_REGION}"
 
         echo "🔧 Configuring VPC..."
         VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query 'Vpcs[0].VpcId' --output text)

@@ -20,7 +20,8 @@ var s3Client *s3.Client
 var s3Bucket string
 
 func InitializeFromEnvironment(ctx context.Context) {
-	cfg, err := config.LoadDefaultConfig(ctx)
+	// TODO: make region configurable!
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("eu-north-1"))
 	if err != nil {
 		log.Fatalf("unable to load SDK config: %v", err)
 	}
