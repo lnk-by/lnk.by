@@ -15,35 +15,27 @@ import (
 )
 
 func listLandingPageTemplate(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	slog.Info("listLandingPageTemplate 1")
 	templatePaths, err := s3client.List(ctx, landingpage.Path, "html")
-	slog.Info("listLandingPageTemplate 2")
 	if err != nil {
-		slog.Info("listLandingPageTemplate 2.1", "error", err)
+		slog.Error("Failed to retrieve list of landing page templates", "error", err)
 		return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError, Body: toJSON(err), Headers: adapter.StandardHeaders}, nil
 	}
 
-	slog.Info("listLandingPageTemplate 3")
 	var templates []landingpage.LandingPageTemplate
 	for _, templatePath := range templatePaths {
-		slog.Info("listLandingPageTemplate 4", "templatePath", templatePath)
 		template, err := landingpage.RetrieveLandingPageTemplate(ctx, fileNameFromPath(templatePath))
-		slog.Info("listLandingPageTemplate 5")
 		if err != nil {
-			slog.Info("listLandingPageTemplate 5.1", "error", err)
+			slog.Error("Failed to retrieve list of landing page template", "path", templatePath, "error", err)
 			return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError, Body: toJSON(err), Headers: adapter.StandardHeaders}, nil
 		}
 		templates = append(templates, template)
 	}
-	slog.Info("listLandingPageTemplate 6")
 	bytes, err := json.Marshal(templates)
-	slog.Info("listLandingPageTemplate 7")
 	if err != nil {
-		slog.Info("listLandingPageTemplate 7.1", "error", err)
+		slog.Error("Failed to marshal landing page templates", "error", err)
 		return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError, Body: toJSON(err), Headers: adapter.StandardHeaders}, nil
 	}
 
-	slog.Info("listLandingPageTemplate 8")
 	return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusOK, Body: string(bytes), Headers: adapter.StandardHeaders}, nil
 }
 

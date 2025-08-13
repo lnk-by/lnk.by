@@ -320,17 +320,12 @@ func ToUUID(s string) *uuid.UUID {
 }
 
 func GetUUIDFromAuthorization(authHeader string) *uuid.UUID {
-	slog.Info("GetUUIDFromAuthorization 1", "header", authHeader)
 	claims := getClaimsFromAuthorization(authHeader)
-	slog.Info("GetUUIDFromAuthorization 2", "claims", claims)
 	if claims != nil {
-		slog.Info("GetUUIDFromAuthorization 2.1", "claims", claims)
 		if subStr, ok := claims["sub"].(string); ok {
-			slog.Info("GetUUIDFromAuthorization 2.2", "subStr", subStr)
 			return ToUUID(subStr)
 		}
 	}
-	slog.Info("GetUUIDFromAuthorization 2 return nil")
 	return nil
 }
 
