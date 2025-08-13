@@ -20,13 +20,14 @@ var s3Client *s3.Client
 var s3Bucket string
 
 func InitializeFromEnvironment(ctx context.Context) {
-	cfg, err := config.LoadDefaultConfig(ctx)
+	region := os.Getenv("AWS_REGION")
+	s3Bucket = os.Getenv("S3_BUCKET")
+	slog.Info("Connection to S3", "region", region, "bucket", s3Bucket)
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		log.Fatalf("unable to load SDK config: %v", err)
 	}
 	s3Client = s3.NewFromConfig(cfg)
-	s3Bucket = os.Getenv("S3_BUCKET")
-	slog.Info("Connection to S3", "bucket", s3Bucket)
 }
 
 func PutString(ctx context.Context, path string, content string) error {
@@ -86,7 +87,7 @@ func List(ctx context.Context, prefix string, extension string) ([]string, error
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("listing S3 objects: %w", err)
+			return nil, fmt.Errorf("listing S3 objects: s3://%s/%s/*.%s %w", s3Bucket, prefix, extension, err)
 		}
 
 		for _, obj := range page.Contents {

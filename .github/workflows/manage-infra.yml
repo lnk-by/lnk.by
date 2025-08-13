@@ -1,4 +1,4 @@
-name: Manage AWS Infrastructure
+name: 🖧 Manage AWS Infrastructure
 
 on:
   workflow_dispatch:
@@ -55,8 +55,12 @@ on:
       rds_data:
         description: 'RDS data (DBID, DB name, username, password), example: db-dev-1,postgres,postgres,mypassword'
         type: string
+      manage_db:
+        description: 'RDS instance'
+        type: boolean
+        default: false
       manage_schema:
-        description: 'PostgreSQL Tables / Schema'
+        description: 'RDS Schema + Tables'
         type: boolean
         default: false
       operation:
@@ -66,11 +70,21 @@ on:
         options:
           - 🚀 Deploy
           - 🗑️ Remove
+          - 🔁 Remove & Deploy
 
+run-name: >-
+  🖧
+  ${{ github.event.inputs.operation }}(${{ github.event.inputs.environment }}):
+  ${{ github.event.inputs.api_gateway != '' && format('📡 {0}', github.event.inputs.api_gateway) || '' }}
+  ${{ github.event.inputs.user_pool != '' && format('👤 {0}', github.event.inputs.user_pool) || '' }}
+  ${{ github.event.inputs.s3_bucket != '' && format('🪣 {0}', github.event.inputs.s3_bucket) || '' }}
+  ${{ github.event.inputs.manage_db == 'true' && '🐘' || '' }}
+  ${{ github.event.inputs.manage_schema == 'true' && '🗂️' || '' }}
 jobs:
   manage:
     name: '${{ github.event.inputs.operation }} Infra'
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
 
     env:
       AWS_REGION: ${{ github.event.inputs.region }}
@@ -79,12 +93,14 @@ jobs:
       HTTP_API_NAME: ${{ github.event.inputs.api_gateway }}
       DB_SQL_CREATE: ./shared/db/create.sql
       DB_SQL_DROP: ./shared/db/drop.sql
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Parse RDS Data
+        id: parse_rds
         if: ${{ inputs.rds_data != '' }}
         run: |
             DB_DATA=$(echo "${{ inputs.rds_data }}" | sed 's/^ *//g' | sed 's/ *$//g' | sed 's/ *, */,/g')
@@ -93,6 +109,7 @@ jobs:
             echo "DB_NAME=$DB_NAME" >> "$GITHUB_ENV"
             echo "DB_USER=$DB_USER" >> "$GITHUB_ENV"
             echo "DB_PASSWORD=$DB_PASSWORD" >> "$GITHUB_ENV"
+            echo "inputs.manage_schema=${{ inputs.manage_schema }}"
 
       - name: Setup AWS CLI
         uses: aws-actions/configure-aws-credentials@v2
@@ -104,35 +121,41 @@ jobs:
       # Remove
 
       # API Gateway
-      - name: Manage API Gateway
-        if: ${{ inputs.api_gateway != '' }}
+      - name: Delete API Gateway
+        if: ${{ inputs.api_gateway != '' && contains(inputs.operation, 'Remove') }}
         run: |
           id=$(aws apigatewayv2 get-apis --query "Items[?Name=='$HTTP_API_NAME'].ApiId" --output text)
           [[ -n "$id" ]] && aws apigatewayv2 delete-api --api-id "$id"
+          for VAR in AWS_API_ID AWS_AUTHORIZER_ID; do
+            if gh variable list --env "${{ github.event.inputs.environment }}" --json name --jq '.[].name' | egrep "^${VAR}\$"; then
+              gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
+            fi
+          done
 
       # Cognito
-      - name: Manage Cognito
+      - name: Delete User pool
         if: ${{ inputs.user_pool != '' && contains(inputs.operation, 'Remove') }}
         run: |
           id=$(aws cognito-idp list-user-pools --max-results 50 --query "UserPools[?Name=='$USER_POOL_NAME'].Id" --output text)
           [[ -n "$id" ]] && aws cognito-idp delete-user-pool --user-pool-id "$id"
+          if gh variable list --env "${{ github.event.inputs.environment }}" --json name --jq '.[].name' | egrep '^AWS_USER_POOL_ID$'; then
+            gh variable delete AWS_USER_POOL_ID --env "${{ github.event.inputs.environment }}"
+          fi
+
 
       # S3 Bucket
-      - name: Manage S3
-        if: ${{ inputs.s3_bucket == 'true' && contains(inputs.operation, 'Remove') }}
+      - name: Remove S3 bucket
+        if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Remove') }}
         run: |
           aws s3 rm "s3://$BUCKET_NAME" --recursive || true
           aws s3api delete-bucket --bucket "$BUCKET_NAME"
-
-      # RDS PostgreSQL
-      - name: Manage RDS
-        if: ${{ inputs.rds_data != '' && contains(inputs.operation, 'Remove') }}
-        run: |
-          aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
+          if gh variable list --env "${{ github.event.inputs.environment }}" --json name --jq '.[].name' | egrep '^S3_BUCKET$'; then
+            gh variable delete S3_BUCKET --env "${{ github.event.inputs.environment }}"
+          fi
 
       # PostgreSQL schema
-      - name: Manage DB Schema
-        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Remove') }}
+      - name: Drop DB Schema
+        if: ${{ inputs.manage_schema == true && contains(inputs.operation, 'Remove') }}
         run: |
           endpoint=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \
@@ -141,29 +164,166 @@ jobs:
 
           PGPASSWORD=$DB_PASSWORD psql -h "$endpoint" -U "$DB_USER" -d "$DB_NAME" -f "$DB_SQL_DROP"
 
+      # RDS PostgreSQL
+      - name: Drop RDS instance
+        if: ${{ inputs.manage_db == true && contains(inputs.operation, 'Remove') }}
+        run: |
+          aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
+          echo "Waiting for DB instance '$DB_IDENTIFIER' to be deleted..."
+          aws rds wait db-instance-deleted --db-instance-identifier  "$DB_IDENTIFIER"
+          echo "DB is now deleted."
+          for VAR in DB_URL JDBC_URL DB_USER; do
+            if gh variable list --env "${{ github.event.inputs.environment }}" --json name --jq '.[].name' | egrep "^${VAR}\$"; then
+              gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
+            fi
+          done
+          gh secret delete DB_PASSWORD --env "${{ github.event.inputs.environment }}"
+
       # Deploy
 
-      # API Gateway
-      - name: Manage API Gateway
-        if: ${{ inputs.api_gateway != '' }}
+      - name: Save general parameters for deployment
+        if: ${{ contains(inputs.operation, 'Deploy') }}
         run: |
-            aws apigatewayv2 create-api --name "$HTTP_API_NAME" --protocol-type HTTP
+          gh variable set AWS_REGION --env "${{ github.event.inputs.environment }}" --body "$AWS_REGION"
+
 
       # Cognito
-      - name: Manage Cognito
+      - name: Create User pool
         if: ${{ inputs.user_pool != '' && contains(inputs.operation, 'Deploy') }}
         run: |
-          aws cognito-idp create-user-pool --pool-name "$USER_POOL_NAME"
+          USER_POOL_JSON=$(aws cognito-idp create-user-pool --pool-name "$USER_POOL_NAME")
+          USER_POOL_ID=$(echo "$USER_POOL_JSON" | grep '"Id":' | cut -d '"' -f4)
+
+          USER_POOL_CLIENT_ID=$(aws cognito-idp create-user-pool-client \
+          --user-pool-id "$USER_POOL_ID" \
+          --client-name 'my-app-client' \
+          --no-generate-secret \
+          --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH ALLOW_USER_SRP_AUTH \
+          --query 'UserPoolClient.ClientId' \
+          --output text)
+
+          echo "Created User Pool with ID $USER_POOL_ID"
+          echo "Created User Pool Client with ID $USER_POOL_CLIENT_ID"
+          gh variable set AWS_APP_CLIENT_ID --env "${{ github.event.inputs.environment }}" --body "$USER_POOL_CLIENT_ID"
+          gh variable set AWS_USER_POOL_ID --env "${{ github.event.inputs.environment }}" --body "$USER_POOL_ID"
+
+      # API Gateway
+      - name: Create API Gateway
+        if: ${{ inputs.api_gateway != '' && contains(inputs.operation, 'Deploy') }}
+        run: |
+            USER_POOL_ID=$(aws cognito-idp list-user-pools --max-results 50 --query "UserPools[?Name=='$USER_POOL_NAME'].Id" --output text)
+            APP_CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$USER_POOL_ID" --query 'UserPoolClients[0].ClientId' --output text)
+
+            API_ID=$(aws apigatewayv2 create-api --name "$HTTP_API_NAME" --protocol-type HTTP --query 'ApiId' --output text)
+
+            AUTHORIZER_ID=$(aws apigatewayv2 create-authorizer \
+            --api-id "$API_ID" \
+            --authorizer-type JWT \
+            --name CognitoAuthorizer \
+            --identity-source '$request.header.Authorization' \
+            --jwt-configuration "Issuer=https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID},Audience=${APP_CLIENT_ID}" \
+            --query 'AuthorizerId' \
+            --output text)
+
+            aws apigatewayv2 create-stage --api-id "$API_ID" --stage-name '$default' --auto-deploy
+
+            echo "Created API gateway with ID $API_ID"
+            echo "Created Authorizer with ID $AUTHORIZER_ID"
+            gh variable set AWS_API_ID --env "${{ github.event.inputs.environment }}" --body "$API_ID"
+            gh variable set AWS_AUTHORIZER_ID --env "${{ github.event.inputs.environment }}" --body "$AUTHORIZER_ID"
+
+      - name: Ensure S3 VPC Endpoint exists
+        if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Deploy') }}
+        run: |
+            echo "just test"
+            set -e
+            SERVICE="com.amazonaws.${AWS_REGION}.s3"
+
+            echo "🔍 Looking for default VPC in region $AWS_REGION..."
+            VPC_ID=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output text)
+
+            if [[ "$VPC_ID" == "None" || -z "$VPC_ID" ]]; then
+              echo "❌ No default VPC found in $AWS_REGION" >&2
+              exit 1
+            fi
+
+            echo "Default VPC ID: $VPC_ID"
+
+            echo "🔎 Checking for existing S3 VPC endpoint in VPC $VPC_ID..."
+            ENDPOINT_ID=$(aws ec2 describe-vpc-endpoints \
+              --filters Name=vpc-id,Values="$VPC_ID" Name=service-name,Values="$SERVICE" \
+              --query "VpcEndpoints[0].VpcEndpointId" \
+              --output text)
+
+            if [[ "$ENDPOINT_ID" != "None" && -n "$ENDPOINT_ID" ]]; then
+              echo "✅ S3 VPC Endpoint already exists: $ENDPOINT_ID"
+              exit 0
+            fi
+
+            echo "No S3 VPC endpoint found. Retrieving route tables for VPC $VPC_ID..."
+            ROUTE_TABLES=$(aws ec2 describe-route-tables --filters Name=vpc-id,Values="$VPC_ID" --query "RouteTables[].RouteTableId" --output text)
+
+            if [[ -z "$ROUTE_TABLES" ]]; then
+              echo "❌ No route tables found for VPC $VPC_ID" >&2
+              exit 1
+            fi
+
+            echo "➕ Creating S3 VPC endpoint for VPC $VPC_ID..."
+            aws ec2 create-vpc-endpoint --vpc-id "$VPC_ID" --service-name "$SERVICE" --route-table-ids $ROUTE_TABLES --vpc-endpoint-type Gateway
+
+            echo "✅ S3 VPC Endpoint created successfully."
+
 
       # S3 Bucket
-      - name: Manage S3
-        if: ${{ inputs.s3_bucket == 'true' && contains(inputs.operation, 'Deploy') }}
+      - name: Create S3 bucket
+        if: ${{ inputs.s3_bucket != '' && contains(inputs.operation, 'Deploy') }}
         run: |
           aws s3api create-bucket --bucket "$BUCKET_NAME" --region "$AWS_REGION" --create-bucket-configuration LocationConstraint="$AWS_REGION"
+          echo "Waiting for bucket $BUCKET_NAME to be ready..."
+          aws s3api wait bucket-exists --bucket "$BUCKET_NAME"
+
+          # Disable block public access
+          aws s3api put-public-access-block \
+            --bucket "$BUCKET_NAME" \
+            --public-access-block-configuration BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false
+
+          # Add bucket policy for public read
+          aws s3api put-bucket-policy \
+            --bucket "$BUCKET_NAME" \
+            --policy '{
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "AllowPublicReadAndList",
+                  "Effect": "Allow",
+                  "Principal": "*",
+                  "Action": [
+                    "s3:ListBucket",
+                    "s3:GetObject"
+                  ],
+                  "Resource": [
+                    "arn:aws:s3:::'"$BUCKET_NAME"'",
+                    "arn:aws:s3:::'"$BUCKET_NAME"'/*"
+                  ]
+                },
+                {
+                  "Sid": "AllowPublicWriteToLandingPagesConf",
+                  "Effect": "Allow",
+                  "Principal": "*",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:PutObject"
+                  ],
+                  "Resource": "arn:aws:s3:::'"$BUCKET_NAME"'/landingpages/conf/*"
+                }
+              ]
+            }'
+          gh variable set S3_BUCKET --env "${{ github.event.inputs.environment }}" --body "$BUCKET_NAME"
+
 
       # RDS PostgreSQL
-      - name: Manage RDS
-        if: ${{ inputs.rds_data != '' && contains(inputs.operation, 'Deploy') }}
+      - name: Deploy RDS instance
+        if: ${{ inputs.manage_db == true && contains(inputs.operation, 'Deploy') }}
         run: |
             aws rds create-db-instance \
               --db-instance-identifier "$DB_IDENTIFIER" \
@@ -173,9 +333,27 @@ jobs:
               --master-user-password "$DB_PASSWORD" \
               --allocated-storage 20
 
+            echo "Waiting for DB instance '$DB_IDENTIFIER' to become available..."
+            aws rds wait db-instance-available --db-instance-identifier "$DB_IDENTIFIER"
+            echo "DB is now available."
+
+            endpoint=$(aws rds describe-db-instances \
+                --db-instance-identifier "$DB_IDENTIFIER" \
+                --query 'DBInstances[0].Endpoint.Address' \
+                --output text)
+
+            db_url="postgresql://$endpoint:5432/${DB_NAME}"
+            jdbc_url="jdbc:postgresql://$endpoint:5432/${DB_NAME}?sslmode=require"
+            echo "DB with requested USER and PASSWORD is created and can be acccessed via DB URL $db_url or JDBC URL $jdbc_url"
+            gh variable set DB_URL --env "${{ github.event.inputs.environment }}" --body "$db_url"
+            gh variable set JDBC_URL --env "${{ github.event.inputs.environment }}" --body "$jdbc_url"
+            gh variable set DB_USER --env "${{ github.event.inputs.environment }}" --body "$DB_USER"
+            gh secret set DB_PASSWORD --env "${{ github.event.inputs.environment }}" --body "$DB_PASSWORD"
+
+
       # PostgreSQL schema
-      - name: Manage DB Schema
-        if: ${{ inputs.manage_schema == 'true' && contains(inputs.operation, 'Deploy') }}
+      - name: Deploy DB Schema
+        if: ${{ inputs.manage_schema == true && contains(inputs.operation, 'Deploy') }}
         run: |
           endpoint=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \

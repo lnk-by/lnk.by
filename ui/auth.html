@@ -8,6 +8,7 @@
     <div>
     <h1>Cognito Test Interface</h1>
     <form id="authForm">
+        <select id="apiSelector"></select>
         <label>Email:</label>
         <input type="text" id="email" required><br><br>
         
@@ -41,11 +42,6 @@
         
         <div id="list" style="display: none;">
             <label>List</label>
-            <select id="apiSelector">
-                <option value="http://localhost:8080">localhost</option>
-                <option value="https://d0rd5c6hp7.execute-api.us-east-1.amazonaws.com">prod</option>
-                <option value="https://4l44leoua1.execute-api.us-east-1.amazonaws.com">dev</option>
-            </select>
             <select id="entitySelector">
                 <option value="organizations">organization</option>
                 <option value="customers">customer</option>
@@ -62,11 +58,13 @@
     <h3 id="status"></h3>
     </div>
 
-
+    <script src="./general.js"></script>
+ 
     <script>
-        const clientId = '7n2qik1p521fv5boumq4sm64pf';
-        const region = 'us-east-1';
-        const url = `https://cognito-idp.${region}.amazonaws.com/`;
+        var envConfig;
+        initConfiguration().then(config => {
+            envConfig = config;
+        });
 
         let idToken = null;
         let accessToken = null;
@@ -79,9 +77,11 @@
         const labelSecretField2 = document.getElementById('labelSecretField2');
         const status = document.getElementById('status');
         const logoutBtn = document.getElementById('logoutBtn');
+        const apiSelector = document.getElementById('apiSelector');
 
         document.getElementById('signupBtn').addEventListener('click', () => {
             labelSecretField.textContent = 'Password:';
+            const clientId = envConfig[apiSelector.options[apiSelector.selectedIndex].text].clientId;
             sendCognitoRequest('SignUp', {
                 Username: emailInput.value,
                 Password: secretField.value,
@@ -92,6 +92,7 @@
 
         document.getElementById('confirmBtn').addEventListener('click', () => {
             labelSecretField.textContent = 'Confirmation Code:';
+            const clientId = envConfig[apiSelector.options[apiSelector.selectedIndex].text].clientId;
             sendCognitoRequest('ConfirmSignUp', {
                 Username: emailInput.value,
                 ConfirmationCode: confirmCodeField.value,
@@ -101,6 +102,7 @@
 
         document.getElementById('resendBtn').addEventListener('click', () => {
             labelSecretField.textContent = '(Code field ignored)';
+            const clientId = envConfig[apiSelector.options[apiSelector.selectedIndex].text].clientId;
             sendCognitoRequest('ResendConfirmationCode', {
                 Username: emailInput.value,
                 ClientId: clientId
@@ -109,6 +111,7 @@
 
         document.getElementById('loginBtn').addEventListener('click', () => {
             labelSecretField.textContent = 'Password:';
+            const clientId = envConfig[apiSelector.options[apiSelector.selectedIndex].text].clientId;
             sendCognitoRequest('InitiateAuth', {
                 AuthFlow: 'USER_PASSWORD_AUTH',
                 AuthParameters: {
@@ -139,6 +142,7 @@
         });        
 
         document.getElementById('showForgotPasswordLink').addEventListener('click', () => {
+            const clientId = envConfig[apiSelector.options[apiSelector.selectedIndex].text].clientId;
             sendCognitoRequest('ForgotPassword', {
                 Username: emailInput.value,
                 ClientId: clientId
@@ -156,6 +160,7 @@
 
         document.getElementById('newPasswordBtn').addEventListener('click', () => {
             labelSecretField2.textContent = 'New Password:';
+            const clientId = envConfig[apiSelector.options[apiSelector.selectedIndex].text].clientId;
             sendCognitoRequest('ConfirmForgotPassword', {
                 ClientId: clientId,
                 Username: emailInput.value,
@@ -178,6 +183,11 @@
         });
 
         async function sendCognitoRequest(action, payload) {
+            const environment = apiSelector.options[apiSelector.selectedIndex].text;
+            const clientId = envConfig[environment].clientId;
+            const region = envConfig[environment].region;
+            const url = `https://cognito-idp.${region}.amazonaws.com/`;
+
             const targetMap = {
                 SignUp: 'AWSCognitoIdentityProviderService.SignUp',
                 ConfirmSignUp: 'AWSCognitoIdentityProviderService.ConfirmSignUp',
