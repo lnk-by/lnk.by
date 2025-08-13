@@ -177,7 +177,7 @@ jobs:
               gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
             fi
           done
-          gh secret delete DB_PASSWORD --env "${{ github.event.inputs.environment }}" --body "$DB_PASSWORD"
+          gh secret delete DB_PASSWORD --env "${{ github.event.inputs.environment }}"
 
       # Deploy
 
