@@ -169,12 +169,15 @@ jobs:
         if: ${{ inputs.manage_db == true && contains(inputs.operation, 'Remove') }}
         run: |
           aws rds delete-db-instance --db-instance-identifier "$DB_IDENTIFIER" --skip-final-snapshot
+          echo "Waiting for DB instance '$DB_IDENTIFIER' to be deleted..."
+          aws rds wait db-instance-deleted --db-instance-identifier  "$DB_IDENTIFIER"
+          echo "DB is now deleted."
           for VAR in DB_URL JDBC_URL DB_USER; do
             if gh variable list --env "${{ github.event.inputs.environment }}" --json name --jq '.[].name' | egrep "^${VAR}\$"; then
               gh variable delete "$VAR" --env "${{ github.event.inputs.environment }}"
             fi
           done
-          gh secret set DB_PASSWORD --env "${{ github.event.inputs.environment }}" --body "$DB_PASSWORD"
+          gh secret delete DB_PASSWORD --env "${{ github.event.inputs.environment }}" --body "$DB_PASSWORD"
 
       # Deploy
 
