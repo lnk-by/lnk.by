@@ -3,7 +3,7 @@ package shorturl
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"os"
@@ -44,7 +44,7 @@ func init() {
 	var err error
 	generator, err = service.NewDefaultGenerator()
 	if err != nil {
-		fmt.Printf("Failed to initialize snowflake generator: %v\n", err)
+		slog.Error("failed to initialize snowflake generator", "error", err)
 		os.Exit(1)
 	}
 }
@@ -107,7 +107,7 @@ var (
 func CreateShortURL(ctx context.Context, requestBody []byte, userID *uuid.UUID) (int, string) {
 	url, err := service.Parse[*ShortURL](ctx, requestBody)
 	if err != nil {
-		return http.StatusBadRequest, http.StatusText(http.StatusBadRequest)
+		return service.Failed(http.StatusBadRequest, err)
 	}
 	if url.CustomerID == nil {
 		url.CustomerID = userID
@@ -158,5 +158,5 @@ func GetLimitExceededMessage(url *ShortURL) (string, int) {
 }
 
 func seconds(t time.Time) int {
-	return int(t.Sub(t).Seconds())
+	return int(time.Until(t).Seconds())
 }

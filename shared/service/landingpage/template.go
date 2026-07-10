@@ -23,16 +23,16 @@ func RetrieveLandingPageTemplate(ctx context.Context, name string) (LandingPageT
 
 	conf, err := s3client.GetString(ctx, getFilePath(name, "json"))
 	if err != nil {
-		return template, err
+		return template, fmt.Errorf("loading template %q config: %w", name, err)
 	}
 
 	if err := json.Unmarshal([]byte(conf), &template.Configuration); err != nil {
-		return template, err
+		return template, fmt.Errorf("parsing template %q config: %w", name, err)
 	}
 
 	styles, err := s3client.List(ctx, Path, "css")
 	if err != nil {
-		return template, err
+		return template, fmt.Errorf("listing styles for template %q: %w", name, err)
 	}
 	template.Style = styles
 	return template, nil

@@ -46,7 +46,7 @@ func (p *LandingPage) Validate() error {
 	case p.ID != uuid.Nil:
 		return service.ErrIDManagedByServer
 	case p.Template == "":
-		return errors.New("email is required")
+		return errors.New("template is required")
 	default:
 		return nil
 	}
@@ -84,7 +84,7 @@ func SetConfiguration(ctx context.Context, page *LandingPage) (*LandingPage, err
 	return page, nil
 }
 
-func StroreConfiguration(ctx context.Context, page *LandingPage) error {
+func StoreConfiguration(ctx context.Context, page *LandingPage) error {
 	return WriteConfiguration(ctx, getConfigurationPath(page.ID), page.Configuration)
 }
 
@@ -99,7 +99,7 @@ func getConfigurationPath(id uuid.UUID) string {
 func CreateLandingPage(ctx context.Context, body string, userID *uuid.UUID) (int, string) {
 	page, err := service.Parse[*LandingPage](ctx, []byte(body))
 	if err != nil {
-		return http.StatusBadRequest, "faied to parse LandingPage data"
+		return service.Failed(http.StatusBadRequest, err)
 	}
 	if page.CustomerID == nil {
 		page.CustomerID = userID
@@ -111,7 +111,7 @@ func CreateLandingPage(ctx context.Context, body string, userID *uuid.UUID) (int
 
 	err = WriteConfiguration(ctx, getConfigurationPath(page.ID), page.Configuration)
 	if err != nil {
-		return http.StatusInternalServerError, err.Error()
+		return service.Failed(http.StatusInternalServerError, fmt.Errorf("storing configuration: %w", err))
 	}
 
 	return http.StatusCreated, body

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"os"
 	"strings"
@@ -25,7 +24,8 @@ func InitializeFromEnvironment(ctx context.Context) {
 	slog.Info("Connection to S3", "region", region, "bucket", s3Bucket)
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
-		log.Fatalf("unable to load SDK config: %v", err)
+		slog.Error("unable to load SDK config", "error", err)
+		os.Exit(1)
 	}
 	s3Client = s3.NewFromConfig(cfg)
 }
@@ -37,12 +37,8 @@ func PutString(ctx context.Context, path string, content string) error {
 		Body:   strings.NewReader(content),
 	}
 
-	// Upload to S3
 	_, err := s3Client.PutObject(ctx, putInput)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func GetString(ctx context.Context, path string) (string, error) {
@@ -72,7 +68,10 @@ func Delete(ctx context.Context, path string) error {
 		Bucket: aws.String(s3Bucket),
 		Key:    aws.String(path),
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("deleting s3://%s/%s: %w", s3Bucket, path, err)
+	}
+	return nil
 }
 
 func List(ctx context.Context, prefix string, extension string) ([]string, error) {

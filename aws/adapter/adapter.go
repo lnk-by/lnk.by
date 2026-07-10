@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -84,10 +85,12 @@ func parseQueryInt(params map[string]string, key string, defaultValue int) (int,
 }
 
 func badRequestResponse(err error) events.APIGatewayV2HTTPResponse {
-	slog.Warn("BadRequest:", "error", err)
+	slog.Warn("BadRequest", "error", err)
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
 	return events.APIGatewayV2HTTPResponse{
 		StatusCode: http.StatusBadRequest,
-		Body:       err.Error(),
+		Body:       string(body),
+		Headers:    StandardHeaders,
 	}
 }
 

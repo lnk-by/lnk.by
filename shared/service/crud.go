@@ -15,6 +15,7 @@ import (
 	"github.com/gofrs/uuid"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lnk.by/shared/db"
 )
@@ -38,6 +39,10 @@ func failed(status int, err error) (int, string) {
 	}
 
 	return status, string(jsonBytes)
+}
+
+func Failed(status int, err error) (int, string) {
+	return failed(status, err)
 }
 
 func withConn[T any](ctx context.Context, f func(conn *pgxpool.Conn) (int, T, error)) (int, T, error) {
@@ -121,7 +126,8 @@ func CreateRecord[T Creatable](ctx context.Context, createSQL CreateSQL[T], t T,
 }
 
 func isDuplicateKeyError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "duplicate key")
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 type Identifiable[K any] interface {
@@ -343,7 +349,7 @@ func getClaimsFromAuthorization(authHeader string) map[string]interface{} {
 			} else {
 				err = json.Unmarshal(decoded, &claims)
 				if err != nil {
-					fmt.Println("Failed to parse JWT claims:", err)
+					slog.Error("failed to parse JWT claims", "error", err)
 				}
 			}
 		} else {
